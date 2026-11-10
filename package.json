@@ -1,0 +1,11 @@
+{
+  "name": "task-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "supabase": "supabase"
+  },
+  "devDependencies": {
+    "supabase": "^3.1.0"
+  }
+}

@@ -1,0 +1,228 @@
+:root {
+  color-scheme: light dark;
+
+  /* Font families */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI",
+    "Yu Gothic", Meiryo, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code",
+    "Roboto Mono", Consolas, monospace;
+
+  /* Type scale */
+  --text-xs: 0.75rem;      /* 12px: 補助情報のみ */
+  --text-sm: 0.875rem;     /* 14px: ラベル、密な一覧 */
+  --text-md: 1rem;         /* 16px: 標準本文 */
+  --text-lg: 1.125rem;     /* 18px: 強調本文 */
+  --text-xl: 1.375rem;     /* 22px: セクション見出し */
+  --text-2xl: 1.75rem;     /* 28px: 画面見出し */
+  --text-3xl: 2.25rem;     /* 36px: 限定的な大見出し */
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.3;
+  --leading-ui: 1.45;
+  --leading-body: 1.7;
+  --tracking-ja: 0.01em;
+  --tracking-label: 0.02em;
+
+  /* Spacing: 4px base */
+  --space-0: 0;
+  --space-1: 0.25rem;      /* 4px */
+  --space-2: 0.5rem;       /* 8px */
+  --space-3: 0.75rem;      /* 12px */
+  --space-4: 1rem;         /* 16px */
+  --space-5: 1.25rem;      /* 20px */
+  --space-6: 1.5rem;       /* 24px */
+  --space-8: 2rem;         /* 32px */
+  --space-10: 2.5rem;      /* 40px */
+  --space-12: 3rem;        /* 48px */
+  --space-16: 4rem;        /* 64px */
+  --space-20: 5rem;        /* 80px */
+
+  /* Radius */
+  --radius-sm: 0.375rem;   /* 6px: 小要素 */
+  --radius-md: 0.625rem;   /* 10px: 入力、ボタン */
+  --radius-lg: 1rem;       /* 16px: 大きな面 */
+  --radius-pill: 999px;    /* タグ、真のピル形状のみ */
+
+  /* Layout */
+  --content-reading: 42rem;  /* 672px */
+  --content-standard: 70rem; /* 1120px */
+  --content-wide: 90rem;     /* 1440px */
+  --page-gutter: clamp(1rem, 3vw, 2rem);
+
+  /* Control sizes */
+  --control-sm: 2rem;       /* 32px: ポインタ中心の密なUI */
+  --control-md: 2.5rem;     /* 40px: 標準 */
+  --control-touch: 2.75rem; /* 44px: タッチ最低線 */
+
+  /* Motion */
+  --duration-instant: 80ms;
+  --duration-fast: 160ms;
+  --duration-normal: 240ms;
+  --duration-slow: 360ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Layer */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-dropdown: 300;
+  --z-overlay: 500;
+  --z-modal: 700;
+  --z-toast: 900;
+  --z-tooltip: 1000;
+
+  /* Colors: Light */
+  --color-bg: #F5F5F7;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-subtle: #F0F1F3;
+  --color-surface-selected: #E8F1FF;
+
+  --color-text: #1D1D1F;
+  --color-text-secondary: #5C5C63;
+  --color-text-tertiary: #74747C;
+  --color-text-on-accent: #FFFFFF;
+
+  --color-border: #D9DADE;
+  --color-border-strong: #B9BBC1;
+  --color-separator: rgba(29, 29, 31, 0.12);
+
+  --color-accent: #006EDB;
+  --color-accent-hover: #005FBE;
+  --color-accent-pressed: #004F9E;
+  --color-focus: #087FE7;
+
+  --color-success: #187A36;
+  --color-success-surface: #EAF7EE;
+  --color-warning: #8A5A00;
+  --color-warning-surface: #FFF5D8;
+  --color-danger: #C62828;
+  --color-danger-surface: #FDECEC;
+  --color-info: #075FAF;
+  --color-info-surface: #E9F3FF;
+
+  --color-disabled-surface: #E9EAED;
+  --color-disabled-text: #8A8B92;
+  --color-backdrop: rgba(0, 0, 0, 0.38);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.18);
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+
+/* Colors: Dark（System追従） */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #101114;
+    --color-surface: #1B1C20;
+    --color-surface-raised: #24262B;
+    --color-surface-subtle: #222328;
+    --color-surface-selected: #173A5E;
+
+    --color-text: #F5F5F7;
+    --color-text-secondary: #C5C6CC;
+    --color-text-tertiary: #A5A7AF;
+    --color-text-on-accent: #08111A;
+
+    --color-border: #3A3C43;
+    --color-border-strong: #565962;
+    --color-separator: rgba(255, 255, 255, 0.14);
+
+    --color-accent: #4CA6FF;
+    --color-accent-hover: #73B9FF;
+    --color-accent-pressed: #2C8DEB;
+    --color-focus: #72B7FF;
+
+    --color-success: #63CE7B;
+    --color-success-surface: #173B24;
+    --color-warning: #F0C45E;
+    --color-warning-surface: #443712;
+    --color-danger: #FF7773;
+    --color-danger-surface: #4A2022;
+    --color-info: #75B9FF;
+    --color-info-surface: #173653;
+
+    --color-disabled-surface: #292B30;
+    --color-disabled-text: #777A83;
+    --color-backdrop: rgba(0, 0, 0, 0.62);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+    --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.38);
+    --shadow-lg: 0 20px 56px rgba(0, 0, 0, 0.48);
+  }
+}
+
+/* Colors: Dark（手動固定。値は上と同一に保つ） */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #101114;
+  --color-surface: #1B1C20;
+  --color-surface-raised: #24262B;
+  --color-surface-subtle: #222328;
+  --color-surface-selected: #173A5E;
+
+  --color-text: #F5F5F7;
+  --color-text-secondary: #C5C6CC;
+  --color-text-tertiary: #A5A7AF;
+  --color-text-on-accent: #08111A;
+
+  --color-border: #3A3C43;
+  --color-border-strong: #565962;
+  --color-separator: rgba(255, 255, 255, 0.14);
+
+  --color-accent: #4CA6FF;
+  --color-accent-hover: #73B9FF;
+  --color-accent-pressed: #2C8DEB;
+  --color-focus: #72B7FF;
+
+  --color-success: #63CE7B;
+  --color-success-surface: #173B24;
+  --color-warning: #F0C45E;
+  --color-warning-surface: #443712;
+  --color-danger: #FF7773;
+  --color-danger-surface: #4A2022;
+  --color-info: #75B9FF;
+  --color-info-surface: #173653;
+
+  --color-disabled-surface: #292B30;
+  --color-disabled-text: #777A83;
+  --color-backdrop: rgba(0, 0, 0, 0.62);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.38);
+  --shadow-lg: 0 20px 56px rgba(0, 0, 0, 0.48);
+}
+
+/* Base */
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--leading-body);
+  letter-spacing: var(--tracking-ja);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
