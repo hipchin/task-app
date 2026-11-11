@@ -186,3 +186,20 @@ describe('未ログイン（anon）は何もできない', () => {
     expect(error).not.toBeNull()
   })
 })
+
+describe('締め切り（SPEC §3.7）', () => {
+  it('日付より前の締め切りは DB で拒否される', async () => {
+    const { error } = await A.from('tasks').insert({ title: '逆転', date: '2026-11-10', due_date: '2026-11-09' })
+    expect(error).not.toBeNull()
+  })
+
+  it('同じ日・後の締め切りは登録できる', async () => {
+    const { error } = await A.from('tasks').insert({ title: '期間', date: '2026-11-10', due_date: '2026-11-10' })
+    expect(error).toBeNull()
+  })
+
+  it('別ユーザーの締め切りは変更できない', async () => {
+    const { data } = await B.from('tasks').update({ due_date: '2026-12-31' }).eq('id', ids.task).select()
+    expect(data ?? []).toEqual([])
+  })
+})

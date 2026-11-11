@@ -8,6 +8,7 @@ export interface Task {
   title: string
   memo: string
   date: DateStr
+  due_date: DateStr | null
   done: boolean
   done_at: string | null
   sort_order: number

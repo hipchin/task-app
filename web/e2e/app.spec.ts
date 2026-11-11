@@ -367,3 +367,56 @@ test('設定画面でアップデートを確認できる', async ({ page }) => 
     await page.screenshot({ path: `${process.env.SHOTS}/list-dark.png` })
   }
 })
+
+test('対応中：日付を過ぎた未完了タスクが出て、ルーティーンは出ない', async ({ page }) => {
+  const { url, service } = localSupabase()
+  const admin = createClient(url, service, { auth: { persistSession: false } })
+  const { id: userId } = credentials()
+  const stamp = Date.now()
+  const late = `書類準備 ${stamp}`
+  const due = `見積もり ${stamp}`
+  const routine = `日課 ${stamp}`
+  const { error } = await admin.from('tasks').insert([
+    { user_id: userId, title: late, date: jstDate(-40) },
+    { user_id: userId, title: due, date: jstDate(-2), due_date: jstDate(3) },
+  ])
+  if (error) throw error
+  await admin.from('routines').insert({ user_id: userId, title: routine, rule_type: 'daily', start_date: jstDate(-5) })
+
+  await login(page)
+  const open = page.locator('section.open-section')
+  await expect(open.getByRole('heading', { name: /対応中/ })).toBeVisible()
+  await expect(open.getByText(late)).toBeVisible()
+  await expect(open.getByText(due)).toBeVisible()
+  await expect(open.getByText(routine)).toHaveCount(0)
+  // 締め切りのあるものが先、残り日数が出る
+  const titles = await open.locator('.row-title').allTextContents()
+  expect(titles.indexOf(due)).toBeLessThan(titles.indexOf(late))
+  await expect(open.locator('li.row', { hasText: due })).toContainText('（あと3日）')
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/open.png` })
+
+  // 折りたたみ
+  await open.getByRole('button', { name: /対応中/ }).click()
+  await expect(open.getByText(late)).toBeHidden()
+  await open.getByRole('button', { name: /対応中/ }).click()
+  await expect(open.getByText(late)).toBeVisible()
+
+  // 完了すると帯から消える（DB でも完了）
+  await open.locator('li.row', { hasText: late }).getByRole('checkbox').click()
+  await expect(open.getByText(late)).toHaveCount(0)
+  const { data } = await admin.from('tasks').select('done').eq('title', late).single()
+  expect(data?.done).toBe(true)
+})
+
+test('締め切りは日付より前にできない', async ({ page }) => {
+  await login(page)
+  const name = `締め切り ${Date.now()}`
+  await quickAdd(page, TOMORROW, [name])
+  await day(page, TOMORROW).getByRole('link', { name: `${name} の詳細` }).click()
+  await page.getByLabel('締め切り（任意）').fill(TODAY)
+  await page.getByRole('button', { name: '保存' }).click()
+  await expect(page.getByText('締め切りは日付と同じ日か、それより後にしてください。')).toBeVisible()
+  await page.getByLabel('締め切り（任意）').fill(TOMORROW)
+  await page.getByRole('button', { name: '保存' }).click()
+  await expect(page.getByRole('heading', { name: 'やること', level: 1 })).toBeVisible()
+})

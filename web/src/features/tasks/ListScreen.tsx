@@ -13,7 +13,8 @@ import { expandRoutines } from '../../lib/expandRoutines'
 import { useOnline } from '../../lib/online'
 import { errorMessage } from '../../lib/errors'
 import type { Routine, RoutineLogWithAttachments, TaskWithAttachments } from '../../lib/types'
-import { useAddTask, useTasks, useToggleTask } from './api'
+import { useAddTask, useOpenTasks, useTasks, useToggleTask } from './api'
+import { openTaskNote } from '../../lib/openTasks'
 import { useRoutineLogs, useRoutines, useToggleRoutine } from '../routines/api'
 import { useToast } from '../../components/toastContext'
 import { Link } from '../../components/Link'
@@ -29,6 +30,7 @@ import {
 
 const START_KEY = 'task-app:list-start'
 const SHOW_ALL_KEY = 'task-app:show-all'
+const OPEN_COLLAPSED_KEY = 'task-app:open-collapsed'
 
 function readSession(key: string): string | null {
   try {
@@ -145,6 +147,12 @@ export function ListScreen() {
 
       {loading ? <DelayedLoading /> : null}
 
+      <OpenSection
+        today={today}
+        online={online}
+        onError={(e, action) => toast.show(errorMessage(e, action))}
+      />
+
       <div className="day-list" ref={listRef} aria-busy={loading}>
         {loading
           ? null
@@ -160,6 +168,61 @@ export function ListScreen() {
             ))}
       </div>
     </div>
+  )
+}
+
+/** 「対応中」：日付を過ぎた未完了のタスク（SPEC §3.7）。ルーティーンは含めない */
+function OpenSection({
+  today,
+  online,
+  onError,
+}: {
+  today: DateStr
+  online: boolean
+  onError: (e: unknown, action: string) => void
+}) {
+  const q = useOpenTasks(today)
+  const toggle = useToggleTask()
+  const [collapsed, setCollapsed] = useState(() => readLocal(OPEN_COLLAPSED_KEY) === 'true')
+  useEffect(() => writeLocal(OPEN_COLLAPSED_KEY, String(collapsed)), [collapsed])
+  const list = q.data ?? []
+  if (list.length === 0) return null
+  const remaining = list.filter((t) => !t.done).length
+  return (
+    <section className="open-section" aria-labelledby="open-heading">
+      <h2 id="open-heading" className="open-heading">
+        <button
+          type="button"
+          className="open-toggle"
+          aria-expanded={!collapsed}
+          aria-controls="open-rows"
+          onClick={() => setCollapsed((v) => !v)}
+        >
+          <IconChevronRight className={`icon icon-sm open-chevron${collapsed ? '' : ' open-chevron-on'}`} />
+          対応中
+          <span className="open-count">{remaining}件</span>
+        </button>
+      </h2>
+      {collapsed ? null : (
+        <ul className="rows" id="open-rows">
+          {list.map((t) => (
+            <TaskRow
+              key={t.id}
+              title={t.title}
+              done={t.done}
+              repeat={false}
+              clip={t.attachments.length > 0}
+              note={openTaskNote(t, today)}
+              disabled={!online}
+              detail={{ name: 'task', id: t.id }}
+              onToggle={() =>
+                toggle.mutate({ id: t.id, done: !t.done }, { onError: (e) => onError(e, '完了状態を変更') })
+              }
+            />
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 
@@ -251,6 +314,7 @@ function TaskRow({
   done,
   repeat,
   clip,
+  note,
   disabled,
   detail,
   onToggle,
@@ -259,6 +323,7 @@ function TaskRow({
   done: boolean
   repeat: boolean
   clip: boolean
+  note?: { text: string; overdue: boolean }
   disabled: boolean
   detail: Parameters<typeof Link>[0]['to']
   onToggle: () => void
@@ -277,7 +342,14 @@ function TaskRow({
         <span className="check-box">{done ? <IconCheck className="icon icon-check" /> : null}</span>
       </button>
       <Link to={detail} className="row-main">
-        <span className="row-title">{title}</span>
+        {note ? (
+          <span className="row-text">
+            <span className="row-title">{title}</span>
+            <span className={`row-note${note.overdue ? ' row-note-overdue' : ''}`}>{note.text}</span>
+          </span>
+        ) : (
+          <span className="row-title">{title}</span>
+        )}
         {repeat ? <IconRepeat className="icon icon-sm row-icon" title="ルーティーン" /> : null}
         {clip ? <IconClip className="icon icon-sm row-icon" title="画像あり" /> : null}
       </Link>

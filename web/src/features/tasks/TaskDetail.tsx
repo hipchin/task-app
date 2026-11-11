@@ -39,19 +39,22 @@ function TaskForm({ task }: { task: Task }) {
   const del = useDeleteTask()
   const [title, setTitle] = useState(task.title)
   const [date, setDate] = useState(task.date)
+  const [due, setDue] = useState(task.due_date ?? '')
   const [memo, setMemo] = useState(task.memo)
   const [done, setDone] = useState(task.done)
   const [remind, setRemind] = useState(task.remind_at ? isoToJstLocal(task.remind_at) : '')
-  const [errors, setErrors] = useState<{ title?: string; date?: string; form?: string }>({})
+  const [errors, setErrors] = useState<{ title?: string; date?: string; due?: string; form?: string }>({})
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const ids = { title: useId(), date: useId(), memo: useId(), remind: useId(), done: useId() }
+  const ids = { title: useId(), date: useId(), due: useId(), memo: useId(), remind: useId(), done: useId() }
 
   const save = () => {
     const next: typeof errors = {}
     if (!title.trim()) next.title = 'タイトルを入力してください。'
     if (!isDateStr(date)) next.date = '日付を正しく入力してください。'
+    if (due && !isDateStr(due)) next.due = '締め切りを正しく入力してください。'
+    else if (due && isDateStr(date) && due < date) next.due = '締め切りは日付と同じ日か、それより後にしてください。'
     setErrors(next)
-    if (next.title || next.date) return
+    if (next.title || next.date || next.due) return
     const remindIso = remind ? jstLocalToIso(remind) : null
     const remindChanged = (task.remind_at ? isoToJstLocal(task.remind_at) : '') !== remind
     update.mutate(
@@ -60,6 +63,7 @@ function TaskForm({ task }: { task: Task }) {
         patch: {
           title: title.trim(),
           date,
+          due_date: due || null,
           memo,
           done,
           done_at: done === task.done ? task.done_at : done ? new Date().toISOString() : null,
@@ -81,6 +85,7 @@ function TaskForm({ task }: { task: Task }) {
       {!online ? <p className="field-hint form-pad">オフラインのため編集できません。</p> : null}
       <form
         className="form"
+        noValidate
         onSubmit={(e) => {
           e.preventDefault()
           save()
@@ -126,6 +131,33 @@ function TaskForm({ task }: { task: Task }) {
               aria-invalid={errors.date ? true : undefined}
             />
             {errors.date ? <p className="field-error">{errors.date}</p> : null}
+          </div>
+
+          <div className="field">
+            <label className="field-label" htmlFor={ids.due}>
+              締め切り（任意）
+            </label>
+            <div className="input-row">
+              <input
+                id={ids.due}
+                type="date"
+                className="input"
+                value={due}
+                min={isDateStr(date) ? date : undefined}
+                onChange={(e) => setDue(e.target.value)}
+                aria-invalid={errors.due ? true : undefined}
+                aria-describedby={`${ids.due}-hint`}
+              />
+              {due ? (
+                <button type="button" className="btn btn-secondary" onClick={() => setDue('')}>
+                  解除
+                </button>
+              ) : null}
+            </div>
+            {errors.due ? <p className="field-error">{errors.due}</p> : null}
+            <p id={`${ids.due}-hint`} className="field-hint">
+              日付を過ぎても終わっていないタスクは、一覧の上の「対応中」に完了するまで表示されます。
+            </p>
           </div>
 
           <div className="field">

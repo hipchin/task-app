@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import type { Task, TaskWithAttachments } from '../../lib/types'
-import type { DateStr } from '../../lib/date'
+import { isDateStr, type DateStr } from '../../lib/date'
+import { sortOpenTasks } from '../../lib/openTasks'
 import { removeStorageFiles } from '../attachments/api'
 
 export const taskKeys = {
   all: ['tasks'] as const,
   range: (from: DateStr, to: DateStr) => ['tasks', from, to] as const,
   detail: (id: string) => ['task', id] as const,
+  open: (today: DateStr) => ['tasks', 'open', today] as const,
 }
 
 const LIST_COLUMNS = '*, attachments(id)'
@@ -26,6 +28,24 @@ export function useTasks(from: DateStr, to: DateStr) {
         .order('created_at')
       if (error) throw error
       return data as TaskWithAttachments[]
+    },
+  })
+}
+
+/** 「対応中」：未完了で今日より前の日付のタスク（表示期間に関係なく取る。SPEC §3.7） */
+export function useOpenTasks(today: DateStr) {
+  return useQuery({
+    queryKey: taskKeys.open(today),
+    queryFn: async (): Promise<TaskWithAttachments[]> => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select(LIST_COLUMNS)
+        .eq('done', false)
+        .lt('date', today)
+        .order('date')
+        .limit(500)
+      if (error) throw error
+      return sortOpenTasks(data as TaskWithAttachments[])
     },
   })
 }
@@ -56,14 +76,25 @@ export function useTask(id: string) {
 
 type RangeKey = readonly ['tasks', DateStr, DateStr]
 
+function isRangeKey(key: readonly unknown[]): key is RangeKey {
+  return key.length === 3 && typeof key[1] === 'string' && isDateStr(key[1])
+}
+
+/** 「対応中」のキャッシュに変更を適用する */
+function updateOpenLists(qc: QueryClient, fn: (list: TaskWithAttachments[]) => TaskWithAttachments[]) {
+  for (const [key, list] of qc.getQueriesData<TaskWithAttachments[]>({ queryKey: ['tasks', 'open'] })) {
+    if (list) qc.setQueryData(key, fn(list))
+  }
+}
+
 /** キャッシュ済みの全期間のタスク一覧に変更を適用する */
 function updateTaskLists(
   qc: QueryClient,
   fn: (list: TaskWithAttachments[], from: DateStr, to: DateStr) => TaskWithAttachments[],
 ) {
   for (const [key, list] of qc.getQueriesData<TaskWithAttachments[]>({ queryKey: taskKeys.all })) {
-    if (!list) continue
-    const [, from, to] = key as unknown as RangeKey
+    if (!list || !isRangeKey(key)) continue
+    const [, from, to] = key
     qc.setQueryData(key, fn(list, from, to))
   }
 }
@@ -105,6 +136,7 @@ export function useAddTask() {
       const now = new Date().toISOString()
       const row: TaskWithAttachments = {
         ...input,
+        due_date: null,
         user_id: '',
         memo: '',
         done: false,
@@ -138,7 +170,9 @@ export function useToggleTask() {
     },
     onMutate: async ({ id, done }) => {
       const snap = await snapshot(qc)
-      updateTaskLists(qc, (list) => list.map((t) => (t.id === id ? { ...t, done } : t)))
+      const mark = (list: TaskWithAttachments[]) => list.map((t) => (t.id === id ? { ...t, done } : t))
+      updateTaskLists(qc, mark)
+      updateOpenLists(qc, mark)
       return { snap }
     },
     onError: (_e, _v, ctx) => ctx && restore(qc, ctx.snap),
@@ -149,7 +183,7 @@ export function useToggleTask() {
   })
 }
 
-export type TaskPatch = Partial<Pick<Task, 'title' | 'memo' | 'date' | 'done' | 'remind_at' | 'notified_at' | 'done_at'>>
+export type TaskPatch = Partial<Pick<Task, 'title' | 'memo' | 'date' | 'due_date' | 'done' | 'remind_at' | 'notified_at' | 'done_at'>>
 
 export function useUpdateTask() {
   const qc = useQueryClient()
@@ -180,6 +214,7 @@ export function useDeleteTask() {
     onSuccess: (_d, id) => {
       qc.removeQueries({ queryKey: taskKeys.detail(id) })
       updateTaskLists(qc, (list) => list.filter((t) => t.id !== id))
+      updateOpenLists(qc, (list) => list.filter((t) => t.id !== id))
       void qc.invalidateQueries({ queryKey: taskKeys.all })
     },
   })
