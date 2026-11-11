@@ -185,6 +185,21 @@ function OpenSection({
   const toggle = useToggleTask()
   const [collapsed, setCollapsed] = useState(() => readLocal(OPEN_COLLAPSED_KEY) === 'true')
   useEffect(() => writeLocal(OPEN_COLLAPSED_KEY, String(collapsed)), [collapsed])
+  if (q.isError && !q.data) {
+    return (
+      <section className="open-section" aria-labelledby="open-heading">
+        <h2 id="open-heading" className="open-heading open-heading-plain">
+          対応中
+        </h2>
+        <div className="inline-error" role="alert">
+          <p>{errorMessage(q.error, '対応中のタスクを読み込み')}</p>
+          <button type="button" className="btn btn-secondary" onClick={() => void q.refetch()}>
+            再読み込み
+          </button>
+        </div>
+      </section>
+    )
+  }
   const list = q.data ?? []
   if (list.length === 0) return null
   const remaining = list.filter((t) => !t.done).length

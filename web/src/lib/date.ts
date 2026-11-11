@@ -7,12 +7,15 @@ export type DateStr = string // 'YYYY-MM-DD'
 const TZ = 'Asia/Tokyo'
 const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土'] as const
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/
+const MIN_YEAR = 1900
+const MAX_YEAR = 2999
 
 export function isDateStr(s: string): boolean {
   const m = DATE_RE.exec(s)
   if (!m) return false
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])]
-  return mo >= 1 && mo <= 12 && d >= 1 && d <= daysInMonth(y, mo)
+  // Date.UTC は 0〜99 年を 1900 年代として扱うので、扱う年を現実的な範囲に限る
+  return y >= MIN_YEAR && y <= MAX_YEAR && mo >= 1 && mo <= 12 && d >= 1 && d <= daysInMonth(y, mo)
 }
 
 export function parse(s: DateStr): { y: number; m: number; d: number } {

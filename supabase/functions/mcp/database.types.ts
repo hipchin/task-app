@@ -145,8 +145,36 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "is_oauth_client":
+            "append_task_memo":
+{ Args: { "p_task_id": string,"p_text": string }; Returns: {
+              "created_at": string,
+"date": string,
+"done": boolean,
+"done_at": string | null,
+"due_date": string | null,
+"id": string,
+"memo": string,
+"notified_at": string | null,
+"remind_at": string | null,
+"sort_order": number,
+"title": string,
+"updated_at": string,
+"user_id": string
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "tasks"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
+"is_oauth_client":
 { Args: Record<PropertyKey, never>; Returns: boolean
+                           },
+"oauth_session_active":
+{ Args: Record<PropertyKey, never>; Returns: boolean
+                           },
+"record_agent_action":
+{ Args: { "p_action": string,"p_summary": string,"p_target": string }; Returns: undefined
                            }
           }
           Enums: {

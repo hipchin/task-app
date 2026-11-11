@@ -485,6 +485,13 @@ button:disabled {
   line-height: var(--leading-ui);
 }
 
+.open-heading-plain {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-touch);
+  padding: 0 var(--app-gutter);
+}
+
 .open-toggle {
   display: flex;
   align-items: center;

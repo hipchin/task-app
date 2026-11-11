@@ -69,6 +69,9 @@ describe('daysInMonth / isLeapYear', () => {
 describe('isDateStr', () => {
   it('形式と実在を確認する', () => {
     expect(isDateStr('2026-02-28')).toBe(true)
+    expect(isDateStr('0000-01-01')).toBe(false)
+    expect(isDateStr('0099-01-01')).toBe(false)
+    expect(isDateStr('3000-01-01')).toBe(false)
     expect(isDateStr('2026-02-29')).toBe(false)
     expect(isDateStr('2028-02-29')).toBe(true)
     expect(isDateStr('2026-13-01')).toBe(false)

@@ -42,8 +42,10 @@ export function useOpenTasks(today: DateStr) {
         .select(LIST_COLUMNS)
         .eq('done', false)
         .lt('date', today)
+        // 件数で切る前に締め切りの近い順に並べる（切られても急ぎのものが残る）
+        .order('due_date', { ascending: true, nullsFirst: false })
         .order('date')
-        .limit(500)
+        .limit(300)
       if (error) throw error
       return sortOpenTasks(data as TaskWithAttachments[])
     },

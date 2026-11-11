@@ -17,6 +17,7 @@ type Db = SupabaseClient<Database>
 
 const MAX_RANGE_DAYS = 62
 const MEMO_PREVIEW = 500
+const OPEN_LIMIT = 300
 
 const dateSchema = z.string().refine(isDateStr, 'YYYY-MM-DD 形式の日付を指定してください')
 const idSchema = z.string().uuid()
@@ -33,11 +34,7 @@ function clip(s: string, n = MEMO_PREVIEW) {
   return s.length > n ? `${s.slice(0, n)}…` : s
 }
 
-async function log(db: Db, action: string, targetId: string | null, summary: string) {
-  // 記録に失敗しても操作自体は成功しているので、エラーはログに残すだけにする
-  const { error } = await db.from('agent_actions').insert({ action, target_id: targetId, summary: clip(summary, 1000) })
-  if (error) console.error('agent_actions insert failed', error.message)
-}
+// 操作記録（agent_actions）は DB のトリガーが変更と同じトランザクションで作る（20261111020000_mcp_hardening.sql）
 
 const READ = { readOnlyHint: true, openWorldHint: false } as const
 const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const
@@ -93,9 +90,12 @@ function buildServer(db: Db) {
         .select('id, title, memo, date, due_date, done, sort_order, created_at')
         .eq('done', false)
         .lt('date', today)
-        .limit(500)
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .order('date')
+        .limit(OPEN_LIMIT + 1)
       if (error) return fail(error.message)
-      const list = sortOpenTasks(data ?? []).map((x) => ({
+      const truncated = (data ?? []).length > OPEN_LIMIT
+      const list = sortOpenTasks((data ?? []).slice(0, OPEN_LIMIT)).map((x) => ({
         id: x.id,
         title: x.title,
         since: x.date,
@@ -103,7 +103,7 @@ function buildServer(db: Db) {
         status: openTaskNote(x, today).text,
         memo: clip(x.memo),
       }))
-      return ok({ today, open_tasks: list })
+      return ok({ today, open_tasks: list, ...(truncated ? { truncated: true, note: `${OPEN_LIMIT}件を超えています。締め切りの近いものから${OPEN_LIMIT}件だけ返しました。` } : {}) })
     },
   )
 
@@ -155,7 +155,6 @@ function buildServer(db: Db) {
         .select('id, title, date, due_date')
         .single()
       if (error) return fail(error.message)
-      await log(db, 'add_task', data.id, `「${title}」を ${d} に追加`)
       return ok({ added: data })
     },
   )
@@ -177,7 +176,6 @@ function buildServer(db: Db) {
         .maybeSingle()
       if (error) return fail(error.message)
       if (!data) return fail('タスクが見つかりません。')
-      await log(db, 'set_task_done', id, `「${data.title}」を${done ? '完了' : '未完了'}にした`)
       return ok({ updated: data })
     },
   )
@@ -209,12 +207,6 @@ function buildServer(db: Db) {
       if (nextDue && nextDue < nextDate) return fail('締め切りは日付と同じ日か、それより後にしてください。')
       const { data, error } = await db.from('tasks').update(patch).eq('id', id).select('id, title, date, due_date').single()
       if (error) return fail(error.message)
-      const parts = [
-        title !== undefined ? `タイトル→「${title}」` : '',
-        date !== undefined ? `日付→${date}` : '',
-        due_date !== undefined ? `締め切り→${due_date ?? 'なし'}` : '',
-      ].filter(Boolean)
-      await log(db, 'update_task', id, `「${cur.title}」の${parts.join('、')}`)
       return ok({ updated: data })
     },
   )
@@ -228,15 +220,11 @@ function buildServer(db: Db) {
       annotations: WRITE,
     },
     async ({ id, text }) => {
-      const { data: cur, error: e1 } = await db.from('tasks').select('id, title, memo').eq('id', id).maybeSingle()
-      if (e1) return fail(e1.message)
-      if (!cur) return fail('タスクが見つかりません。')
       const stamp = new Date(Date.now() + 9 * 3_600_000).toISOString().slice(0, 16).replace('T', ' ')
-      const memo = `${cur.memo}${cur.memo ? '\n\n' : ''}[${stamp} AI] ${text}`
-      if (memo.length > 20000) return fail('メモが長すぎます（2万字まで）。')
-      const { error } = await db.from('tasks').update({ memo }).eq('id', id)
-      if (error) return fail(error.message)
-      await log(db, 'append_task_memo', id, `「${cur.title}」のメモに追記：${text}`)
+      // DB の関数で1回の UPDATE として追記する（同時に追記しても消えない）
+      const { data, error } = await db.rpc('append_task_memo', { p_task_id: id, p_text: `[${stamp} AI] ${text}` })
+      if (error) return fail(/check|20000/i.test(error.message) ? 'メモが長すぎます（2万字まで）。' : error.message)
+      if (!data || (Array.isArray(data) && data.length === 0)) return fail('タスクが見つかりません。')
       return ok({ appended: true })
     },
   )
@@ -258,7 +246,6 @@ function buildServer(db: Db) {
         .from('routine_logs')
         .upsert({ routine_id, date, done }, { onConflict: 'routine_id,date' })
       if (error) return fail(error.message)
-      await log(db, 'set_routine_done', routine_id, `ルーティーン「${r.title}」の ${date} を${done ? '完了' : '未完了'}にした`)
       return ok({ routine_id, date, done })
     },
   )

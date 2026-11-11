@@ -169,8 +169,22 @@ test('ChatGPT と同じ手順で接続し、読み書きでき、禁止操作は
   expect(ins.error).not.toBeNull()
   const att = await asGpt.from('attachments').select('id')
   expect(att.data ?? []).toEqual([])
-  const forged = await asGpt.from('agent_actions').insert({ action: 'x', summary: '偽の記録', user_id: userId }).select('client_id').single()
-  expect(forged.data?.client_id).toBe(client.client_id) // client_id はトークンから自動で入る
+  // 操作記録は直接書けない（DB の変更から自動で作られる）
+  const forged = await asGpt.from('agent_actions').insert({ action: 'x', summary: '偽の記録' })
+  expect(forged.error).not.toBeNull()
+  // メモは追記のみ。書き換え・通知の設定は REST から直接でも拒否
+  const wipe = await asGpt.from('tasks').update({ memo: '' }).eq('id', taskId)
+  expect(wipe.error?.message ?? '').toContain('追記のみ')
+  const remind = await asGpt.from('tasks').update({ remind_at: new Date().toISOString() }).eq('id', taskId)
+  expect(remind.error).not.toBeNull()
+  // REST から直接変えても操作記録が残る
+  const direct = await asGpt.from('tasks').update({ title: `${title} 改` }).eq('id', taskId)
+  expect(direct.error).toBeNull()
+  const { data: acts } = await admin.from('agent_actions').select('action, summary, client_id').eq('target_id', taskId).order('created_at')
+  expect(acts?.map((a) => a.action)).toEqual(['add_task', 'update_task', 'update_task', 'update_task'])
+  expect(acts?.every((a) => a.client_id === client.client_id)).toBe(true)
+  expect(acts?.[1]?.summary).toContain('メモに追記：')
+  expect(acts?.[3]?.summary).toContain('タイトルを')
 
   // 8. 設定画面：連携中のアプリと操作履歴
   await page.goto('./#/settings')
@@ -185,4 +199,9 @@ test('ChatGPT と同じ手順で接続し、読み書きでき、禁止操作は
   await expect(page.getByText(clientName, { exact: true })).toHaveCount(0)
   const after = await rpc(fnUrl, token, 'tools/call', { name: 'list_open_tasks', arguments: {} })
   expect(after.status).toBe(401)
+  // REST から直接でも、同じトークンでは読めない・書けない
+  const readAfter = await asGpt.from('tasks').select('id')
+  expect(readAfter.data ?? []).toEqual([])
+  const addAfter = await asGpt.from('tasks').insert({ title: '解除後', date: jstDate(0) })
+  expect(addAfter.error).not.toBeNull()
 })

@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { useDeleteTask, useTask, useUpdateTask } from './api'
+import { useDeleteTask, useTask, useUpdateTask, type TaskPatch } from './api'
 import { AttachmentsSection } from '../attachments/AttachmentsSection'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ScreenHeader } from '../../components/ScreenHeader'
@@ -57,21 +57,27 @@ function TaskForm({ task }: { task: Task }) {
     if (next.title || next.date || next.due) return
     const remindIso = remind ? jstLocalToIso(remind) : null
     const remindChanged = (task.remind_at ? isoToJstLocal(task.remind_at) : '') !== remind
+    // 変えた項目だけ送る（画面を開いている間に AI などが変えた別の項目を、古い値で上書きしない）
+    const patch: TaskPatch = {}
+    if (title.trim() !== task.title) patch.title = title.trim()
+    if (date !== task.date) patch.date = date
+    if ((due || null) !== task.due_date) patch.due_date = due || null
+    if (memo !== task.memo) patch.memo = memo
+    if (done !== task.done) {
+      patch.done = done
+      patch.done_at = done ? new Date().toISOString() : null
+    }
+    if (remindChanged) {
+      patch.remind_at = remindIso
+      // リマインダーを変えたら、もう一度通知されるようにする
+      patch.notified_at = null
+    }
+    if (Object.keys(patch).length === 0) {
+      goBack()
+      return
+    }
     update.mutate(
-      {
-        id: task.id,
-        patch: {
-          title: title.trim(),
-          date,
-          due_date: due || null,
-          memo,
-          done,
-          done_at: done === task.done ? task.done_at : done ? new Date().toISOString() : null,
-          remind_at: remindIso,
-          // リマインダーを変えたら、もう一度通知されるようにする
-          ...(remindChanged ? { notified_at: null } : {}),
-        },
-      },
+      { id: task.id, patch },
       {
         onSuccess: () => goBack(),
         onError: (e) => setErrors({ form: errorMessage(e, '保存') }),
