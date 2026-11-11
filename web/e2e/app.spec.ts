@@ -351,3 +351,18 @@ test('昨日の未完了ルーティーンは今日に繰り越されず、ル�
   await page.getByRole('button', { name: '今日', exact: true }).click()
   await expect(day(page, TODAY).locator('li.row', { hasText: name })).toHaveCount(0)
 })
+
+test('設定画面でアップデートを確認できる', async ({ page }) => {
+  await login(page)
+  await page.getByRole('link', { name: '設定' }).click()
+  await expect(page.getByRole('heading', { name: 'バージョン' })).toBeVisible()
+  await page.getByRole('button', { name: 'アップデートを確認' }).click()
+  await expect(page.getByText(/最新のバージョンです|このブラウザでは確認できません|更新しています/)).toBeVisible()
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/settings.png`, fullPage: true })
+  if (process.env.SHOTS) {
+    await page.goBack()
+    await page.screenshot({ path: `${process.env.SHOTS}/list.png` })
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await page.screenshot({ path: `${process.env.SHOTS}/list-dark.png` })
+  }
+})

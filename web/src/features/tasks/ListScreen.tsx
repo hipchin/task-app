@@ -4,7 +4,7 @@ import {
   dayOfWeek,
   eachDay,
   formatDayLabel,
-  formatLongDate,
+  formatPeriod,
   periodFrom,
   todayJst,
   type DateStr,
@@ -107,7 +107,17 @@ export function ListScreen() {
   return (
     <div className="screen">
       <header className="list-header">
-        <div className="list-header-row">
+        <div className="list-header-top">
+          <Link to={{ name: 'routines' }} className="text-link header-start">
+            <IconRepeat className="icon icon-sm" />
+            ルーティーン
+          </Link>
+          <h1 className="list-title">やること</h1>
+          <Link to={{ name: 'settings' }} className="icon-btn header-end" aria-label="設定">
+            <IconSettings />
+          </Link>
+        </div>
+        <div className="list-header-row list-header-sub">
           <div className="period-nav" role="group" aria-label="期間の移動">
             <button type="button" className="icon-btn" onClick={() => moveTo(addMonths(start, -1))} aria-label="前の期間">
               <IconPrevPeriod />
@@ -119,7 +129,6 @@ export function ListScreen() {
               <IconNextPeriod />
             </button>
           </div>
-          <h1 className="list-title">やること</h1>
           <button
             type="button"
             className="btn btn-secondary btn-compact filter-toggle"
@@ -129,20 +138,10 @@ export function ListScreen() {
             {showAll ? 'すべて' : '未完了'}
           </button>
         </div>
-        <div className="list-header-row list-header-sub">
-          <p className="period-label">
-            期間: <span className="nowrap">{formatLongDate(from)}</span>〜<span className="nowrap">{formatLongDate(to)}</span>
-          </p>
-          <nav className="header-links" aria-label="その他の画面">
-            <Link to={{ name: 'routines' }} className="text-link">
-              <IconRepeat className="icon icon-sm" />
-              ルーティーン
-            </Link>
-            <Link to={{ name: 'settings' }} className="icon-btn" aria-label="設定">
-              <IconSettings />
-            </Link>
-          </nav>
-        </div>
+        <p className="period-label">
+          <span className="visually-hidden">期間: </span>
+          {formatPeriod(from, to)}
+        </p>
       </header>
 
       {error && !tasksQ.data ? (

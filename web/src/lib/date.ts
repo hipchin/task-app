@@ -101,6 +101,13 @@ export function formatLongDate(s: DateStr): string {
   return `${y}年${m}月${d}日`
 }
 
+/** 期間の表示。同じ年なら終わりの年は省く（例：2026年11月11日〜12月10日） */
+export function formatPeriod(from: DateStr, to: DateStr): string {
+  const a = parse(from)
+  const b = parse(to)
+  return `${a.y}年${a.m}月${a.d}日〜${b.y === a.y ? '' : `${b.y}年`}${b.m}月${b.d}日`
+}
+
 export function weekdayLabel(dow: number): string {
   return WEEKDAYS_JA[dow] ?? ''
 }

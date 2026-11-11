@@ -8,6 +8,7 @@ import {
   eachDay,
   formatDayLabel,
   formatLongDate,
+  formatPeriod,
   isDateStr,
   isLeapYear,
   isoToJstLocal,
@@ -87,6 +88,8 @@ describe('dayOfWeek / ラベル', () => {
   })
   it('YYYY年M月D日', () => {
     expect(formatLongDate('2026-01-05')).toBe('2026年1月5日')
+    expect(formatPeriod('2026-11-11', '2026-12-10')).toBe('2026年11月11日〜12月10日')
+    expect(formatPeriod('2026-12-15', '2027-01-14')).toBe('2026年12月15日〜2027年1月14日')
   })
 })
 

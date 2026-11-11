@@ -6,8 +6,19 @@ import { VitePWA } from 'vite-plugin-pwa'
 // GitHub Pages（https://hipchin.github.io/task-app/）で配信する
 const base = process.env.VITE_BASE_PATH ?? '/task-app/'
 
+// 設定画面に出すバージョン：package.json の version＋ビルド日時（JST）＋コミット
+function appVersion(): string {
+  const jst = new Date(Date.now() + 9 * 3600_000).toISOString()
+  const stamp = `${jst.slice(0, 10).replaceAll('-', '.')} ${jst.slice(11, 16)}`
+  const sha = process.env.GITHUB_SHA?.slice(0, 7)
+  return `${process.env.npm_package_version ?? '0.0.0'}（${stamp}${sha ? ` / ${sha}` : ''}）`
+}
+
 export default defineConfig({
   base,
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion()),
+  },
   plugins: [
     react(),
     VitePWA({
