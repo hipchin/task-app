@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from './lib/auth'
 import { useOnline } from './lib/online'
-import { parseRoute, useHash } from './lib/router'
+import { isTabRoute, parseRoute, useHash } from './lib/router'
 import { useRealtimeSync } from './lib/realtime'
 import { ListScreen } from './features/tasks/ListScreen'
 import { TaskDetail } from './features/tasks/TaskDetail'
@@ -12,6 +12,7 @@ import { RoutineEdit } from './features/routines/RoutineEdit'
 import { SettingsScreen } from './features/settings/SettingsScreen'
 import { LoginScreen } from './features/settings/LoginScreen'
 import { UpdatePrompt } from './components/UpdatePrompt'
+import { TabBar } from './components/TabBar'
 
 export default function App() {
   const auth = useAuth()
@@ -57,7 +58,8 @@ function SignedIn({ userId, email }: { userId: string; email: string }) {
   }, [route.name])
 
   return (
-    <main className="app">
+    <>
+    <main className={`app${isTabRoute(route) ? ' app-tabbed' : ''}`}>
       {route.name === 'list' ? <ListScreen /> : null}
       {route.name === 'task' ? <TaskDetail id={route.id} /> : null}
       {route.name === 'routineDay' ? <RoutineDay routineId={route.routineId} date={route.date} /> : null}
@@ -65,5 +67,7 @@ function SignedIn({ userId, email }: { userId: string; email: string }) {
       {route.name === 'routineEdit' ? <RoutineEdit id={route.id} /> : null}
       {route.name === 'settings' ? <SettingsScreen email={email} /> : null}
     </main>
+    {isTabRoute(route) ? <TabBar current={route.name} /> : null}
+    </>
   )
 }

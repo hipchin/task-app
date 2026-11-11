@@ -7,18 +7,24 @@ export function ScreenHeader({
   backLabel = '一覧',
   backTo,
   right,
+  showBack = true,
 }: {
   title: string
   backLabel?: string
   backTo?: Route
   right?: ReactNode
+  showBack?: boolean
 }) {
   return (
     <header className="screen-header">
-      <button type="button" className="back-btn" onClick={() => goBack(backTo)}>
-        <IconChevronLeft className="icon icon-sm" />
-        {backLabel}
-      </button>
+      {showBack ? (
+        <button type="button" className="back-btn" onClick={() => goBack(backTo)}>
+          <IconChevronLeft className="icon icon-sm" />
+          {backLabel}
+        </button>
+      ) : (
+        <span />
+      )}
       <h1 className="screen-title">{title}</h1>
       <div className="screen-header-right">{right}</div>
     </header>

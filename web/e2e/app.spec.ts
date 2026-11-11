@@ -191,9 +191,10 @@ test('ルーティーン：毎週（曜日指定）が該当日だけに表示�
   await page.getByRole('button', { name: '保存' }).click()
   await expect(page.getByText(name)).toBeVisible()
   await expect(page.getByText('毎週 月・水・金')).toBeVisible()
-  await page.getByRole('button', { name: '一覧' }).click()
+  await page.getByRole('link', { name: '一覧' }).click()
 
   const sections = page.locator('section[data-date]')
+  await expect(day(page, TODAY)).toBeVisible()
   const dates = await sections.evaluateAll((els) => els.map((e) => e.getAttribute('data-date') ?? ''))
   const shown: string[] = []
   for (const d of dates) {
@@ -360,7 +361,7 @@ test('設定画面でアップデートを確認できる', async ({ page }) => 
   await expect(page.getByText(/最新のバージョンです|このブラウザでは確認できません|更新しています/)).toBeVisible()
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/settings.png`, fullPage: true })
   if (process.env.SHOTS) {
-    await page.goBack()
+    await page.getByRole('link', { name: '一覧' }).click()
     await page.screenshot({ path: `${process.env.SHOTS}/list.png` })
     await page.emulateMedia({ colorScheme: 'dark' })
     await page.screenshot({ path: `${process.env.SHOTS}/list-dark.png` })

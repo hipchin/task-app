@@ -256,9 +256,8 @@ button:disabled {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  padding: calc(var(--space-2) + env(safe-area-inset-top)) var(--app-gutter) var(--space-1);
+  padding: calc(var(--space-2) + env(safe-area-inset-top)) var(--app-gutter) var(--space-2);
   background: var(--color-bg);
-  border-bottom: 1px solid var(--color-separator);
 }
 
 .offline-banner + .app .list-header,
@@ -266,42 +265,58 @@ button:disabled {
   padding-top: var(--space-2);
 }
 
+/* 期間移動のまとまり／タイトル／すべて を1行に。タイトルは中央 */
 .list-header-top {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.header-start {
-  justify-self: start;
-  margin-left: calc(var(--space-2) * -1);
-}
-
-.header-end {
-  justify-self: end;
-  margin-right: calc(var(--space-2) * -1);
-}
-
-.list-header-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-.list-header-sub {
-  justify-content: space-between;
-  margin-top: var(--space-1);
 }
 
 .period-nav {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  margin-left: calc(var(--space-3) * -1);
+  flex: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.period-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--control-touch);
+  min-height: var(--control-touch);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  transition: background-color var(--duration-instant) var(--ease-standard);
+}
+
+.period-btn:hover {
+  background: var(--color-surface-subtle);
+}
+
+.period-btn:active {
+  background: var(--color-surface-selected);
+}
+
+.period-today {
+  padding: 0 var(--space-3);
+  border-left: 1px solid var(--color-separator);
+  border-right: 1px solid var(--color-separator);
+}
+
+.filter-toggle {
+  border-radius: var(--radius-pill);
 }
 
 .list-title {
+  flex: 1;
   font-size: var(--text-xl);
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
@@ -310,30 +325,31 @@ button:disabled {
 }
 
 .period-label {
-  padding: var(--space-1) 0;
+  padding: var(--space-2) var(--app-gutter);
+  border-top: 1px solid var(--color-separator);
+  border-bottom: 1px solid var(--color-separator);
+  background: var(--color-surface);
   color: var(--color-text-secondary);
   font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
   line-height: var(--leading-ui);
-  text-align: center;
 }
 
-.day-list {
-  padding: 0 var(--app-gutter);
-}
-
+/* 日ごと：見出しは帯、行は端から端までのセル（iPhone の一覧表示に合わせる） */
 .day {
-  padding: var(--space-5) 0 var(--space-2);
-  border-bottom: 1px solid var(--color-separator);
-  scroll-margin-top: var(--space-20);
+  scroll-margin-top: var(--space-16);
 }
 
 .day-heading {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding-bottom: var(--space-2);
-  font-size: var(--text-lg);
+  margin-top: var(--space-4);
+  padding: var(--space-1) var(--app-gutter);
+  border-bottom: 1px solid var(--color-separator);
+  background: var(--color-surface-subtle);
+  font-size: var(--text-sm);
   font-weight: var(--weight-bold);
   line-height: var(--leading-ui);
   color: var(--color-text-secondary);
@@ -353,7 +369,7 @@ button:disabled {
   border-radius: var(--radius-pill);
   background: var(--color-accent);
   color: var(--color-text-on-accent);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
 }
 
@@ -361,12 +377,16 @@ button:disabled {
   margin: 0;
   padding: 0;
   list-style: none;
+  background: var(--color-surface);
 }
 
 .row {
   display: flex;
   align-items: center;
-  min-height: var(--space-12);
+  gap: var(--space-2);
+  min-height: var(--space-16);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--color-separator);
   transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
@@ -375,19 +395,19 @@ button:disabled {
   place-items: center;
   width: var(--control-touch);
   height: var(--control-touch);
-  margin-left: calc(var(--space-3) * -1);
   border: 0;
   background: transparent;
   flex: none;
 }
 
+/* 丸いチェック（iPhone のリマインダーに近い形） */
 .check-box {
   display: grid;
   place-items: center;
-  width: 1.625rem;
-  height: 1.625rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border: 2px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   transition:
     background-color var(--duration-instant) var(--ease-standard),
@@ -422,12 +442,12 @@ button:disabled {
   gap: var(--space-2);
   flex: 1;
   min-width: 0;
-  min-height: var(--space-12);
-  padding: var(--space-2) 0;
+  min-height: var(--space-16);
+  padding: var(--space-3) 0;
   color: var(--color-text);
   text-decoration: none;
-  line-height: var(--leading-ui);
   font-size: var(--text-lg);
+  line-height: var(--leading-ui);
 }
 
 .row-title {
@@ -440,7 +460,6 @@ button:disabled {
 }
 
 .row-detail {
-  margin-right: calc(var(--space-3) * -1);
   color: var(--color-text-tertiary);
 }
 
@@ -454,13 +473,19 @@ button:disabled {
   text-decoration-color: var(--color-text-secondary);
 }
 
+.quick-add {
+  padding: 0 var(--app-gutter);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-separator);
+}
+
 .quick-add-btn {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
-  gap: var(--space-1);
-  min-height: var(--control-touch);
-  margin-left: calc(var(--space-2) * -1);
-  padding: 0 var(--space-2);
+  gap: var(--space-2);
+  min-height: var(--space-12);
+  padding: 0 var(--space-1);
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -478,7 +503,7 @@ button:disabled {
 }
 
 .quick-add-form {
-  padding: var(--space-1) 0 var(--space-2);
+  padding: var(--space-2) 0;
 }
 
 .quick-add-input {
@@ -1072,4 +1097,54 @@ button:disabled {
     opacity: 0;
     transform: translateY(var(--space-2));
   }
+}
+
+/* ---------------------------------------------------------------------------
+   画面下のタブ
+--------------------------------------------------------------------------- */
+.app-tabbed .screen {
+  padding-bottom: calc(var(--space-20) + var(--space-8) + env(safe-area-inset-bottom));
+}
+
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--app-gutter) calc(var(--space-2) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--color-separator);
+  background: var(--color-surface);
+}
+
+.tab {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-1);
+  min-width: var(--space-20);
+  min-height: var(--space-12);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: background-color var(--duration-instant) var(--ease-standard);
+}
+
+.tab[aria-current='page'] {
+  background: var(--color-surface-selected);
+  color: var(--color-accent);
+}
+
+.tab-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.toasts {
+  bottom: calc(var(--space-20) + var(--space-4) + env(safe-area-inset-bottom));
 }

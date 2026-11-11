@@ -25,7 +25,6 @@ import {
   IconPlus,
   IconPrevPeriod,
   IconRepeat,
-  IconSettings,
 } from '../../components/Icons'
 
 const START_KEY = 'task-app:list-start'
@@ -108,27 +107,18 @@ export function ListScreen() {
     <div className="screen">
       <header className="list-header">
         <div className="list-header-top">
-          <Link to={{ name: 'routines' }} className="text-link header-start">
-            <IconRepeat className="icon icon-sm" />
-            ルーティーン
-          </Link>
-          <h1 className="list-title">やること</h1>
-          <Link to={{ name: 'settings' }} className="icon-btn header-end" aria-label="設定">
-            <IconSettings />
-          </Link>
-        </div>
-        <div className="list-header-row list-header-sub">
           <div className="period-nav" role="group" aria-label="期間の移動">
-            <button type="button" className="icon-btn" onClick={() => moveTo(addMonths(start, -1))} aria-label="前の期間">
-              <IconPrevPeriod />
+            <button type="button" className="period-btn" onClick={() => moveTo(addMonths(start, -1))} aria-label="前の期間">
+              <IconPrevPeriod className="icon icon-sm" />
             </button>
-            <button type="button" className="btn btn-secondary btn-compact" onClick={() => moveTo(today)}>
+            <button type="button" className="period-btn period-today" onClick={() => moveTo(today)}>
               今日
             </button>
-            <button type="button" className="icon-btn" onClick={() => moveTo(addMonths(start, 1))} aria-label="次の期間">
-              <IconNextPeriod />
+            <button type="button" className="period-btn" onClick={() => moveTo(addMonths(start, 1))} aria-label="次の期間">
+              <IconNextPeriod className="icon icon-sm" />
             </button>
           </div>
+          <h1 className="list-title">やること</h1>
           <button
             type="button"
             className="btn btn-secondary btn-compact filter-toggle"
@@ -138,11 +128,11 @@ export function ListScreen() {
             {showAll ? 'すべて' : '未完了'}
           </button>
         </div>
-        <p className="period-label">
-          <span className="visually-hidden">期間: </span>
-          {formatPeriod(from, to)}
-        </p>
       </header>
+      <p className="period-label">
+        <span className="visually-hidden">期間: </span>
+        {formatPeriod(from, to)}
+      </p>
 
       {error && !tasksQ.data ? (
         <div className="inline-error" role="alert">
@@ -249,7 +239,9 @@ function DaySection({
           ),
         )}
       </ul>
-      <QuickAdd date={date} label={formatDayLabel(date)} disabled={!online} onError={onError} />
+      <div className="quick-add">
+        <QuickAdd date={date} label={formatDayLabel(date)} disabled={!online} onError={onError} />
+      </div>
     </section>
   )
 }

@@ -72,3 +72,10 @@ function subscribe(cb: () => void) {
 export function useHash(): string {
   return useSyncExternalStore(subscribe, () => location.hash, () => '')
 }
+
+/** 画面下のタブを出す画面 */
+export type TabName = 'list' | 'routines' | 'settings'
+
+export function isTabRoute(route: Route): route is Extract<Route, { name: TabName }> {
+  return route.name === 'list' || route.name === 'routines' || route.name === 'settings'
+}

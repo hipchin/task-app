@@ -57,7 +57,7 @@ export function SettingsScreen({ email }: { email: string }) {
 
   return (
     <div className="screen">
-      <ScreenHeader title="設定" />
+      <ScreenHeader title="設定" showBack={false} />
       <div className="form">
         <section className="settings-section" aria-labelledby="s-notify">
           <h2 id="s-notify" className="section-title">

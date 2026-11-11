@@ -18,6 +18,7 @@ export function RoutinesScreen() {
     <div className="screen">
       <ScreenHeader
         title="ルーティーン"
+        showBack={false}
         right={
           <button
             type="button"
