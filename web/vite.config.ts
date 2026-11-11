@@ -43,6 +43,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
         navigateFallback: `${base}index.html`,
+        // 連携の同意画面は、古いバージョンがキャッシュに残っていても必ず最新を取りに行く（SPEC Phase 3）
+        navigateFallbackDenylist: [/\/oauth\//],
         // Supabase へのリクエストは Service Worker でキャッシュしない（データは TanStack Query の永続化で扱う）
         runtimeCaching: [],
       },
