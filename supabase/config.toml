@@ -378,8 +378,8 @@ enabled = false
 [auth.oauth_server]
 # ChatGPT から MCP で接続するための OAuth 2.1 サーバー（SPEC Phase 3）
 enabled = true
-# 同意画面：site_url に付け足される → https://hipchin.github.io/task-app/oauth/consent
-authorization_url_path = "oauth/consent"
+# 同意画面：site_url に付け足される → https://hipchin.github.io/task-app/oauth/consent（本番は先頭の / が必須）
+authorization_url_path = "/oauth/consent"
 # ChatGPT などの MCP クライアントは自分でクライアント登録する（登録しても本人のログインと同意がなければ使えない）
 allow_dynamic_registration = true
 
