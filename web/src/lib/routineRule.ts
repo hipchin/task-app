@@ -1,5 +1,5 @@
-import { addDays, compare, type DateStr, weekdayLabel } from './date'
-import type { Routine, RuleType } from './types'
+import { addDays, compare, type DateStr, weekdayLabel } from './date.ts'
+import type { Routine, RuleType } from './types.ts'
 
 export const RULE_TYPE_LABELS: Record<RuleType, string> = {
   daily: '毎日',

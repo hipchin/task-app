@@ -376,12 +376,16 @@ enabled = false
 
 # OAuth server configuration
 [auth.oauth_server]
-# Enable OAuth server functionality
-enabled = false
-# Path for OAuth consent flow UI
-authorization_url_path = "/oauth/consent"
-# Allow dynamic client registration
-allow_dynamic_registration = false
+# ChatGPT から MCP で接続するための OAuth 2.1 サーバー（SPEC Phase 3）
+enabled = true
+# 同意画面：site_url に付け足される → https://hipchin.github.io/task-app/oauth/consent
+authorization_url_path = "oauth/consent"
+# ChatGPT などの MCP クライアントは自分でクライアント登録する（登録しても本人のログインと同意がなければ使えない）
+allow_dynamic_registration = true
+
+[functions.mcp]
+# 関数の中でトークンを検証する（未認証の発見用リクエストを通すため、ゲートウェイでは検証しない）
+verify_jwt = false
 
 [edge_runtime]
 enabled = true

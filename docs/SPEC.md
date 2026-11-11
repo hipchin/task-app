@@ -20,13 +20,14 @@
 | 通知 | Web Push（iOS 16.4以降・ホーム画面追加時のみ） |
 | ルーティーン未実行 | その日の未完了として残り、翌日へ繰り越さない |
 | 通常タスクの未完了 | 日付を過ぎたものはすべて一覧上部の「対応中」に集める（2026-11-11 追加） |
-| AI秘書 | LLM接続部分を差し替え可能にする。Muse Spark（日本で使える場合）またはClaude |
+| AI秘書 | アプリ側からLLMのAPIは呼ばない。ChatGPT（Plus）からリモートMCPサーバーに接続してもらう（2026-11-11 変更） |
 
 ### 未決事項（TODO）
 - TODO-1: 上部「すべて」ボタンの意味（全件表示／未完了のみの切り替え、と仮定）
 - TODO-2: 平日ルールで日本の祝日を除外するか（v1では除外しない）
 - TODO-3: 毎月31日のように存在しない日があるルールの扱い（v1ではその月はスキップ）
-- TODO-4: AI秘書で使うモデル（Phase 4開始時に決める）
+- ~~TODO-4: AI秘書で使うモデル~~ → ChatGPT から MCP で接続する形に決定（2026-11-11）
+- TODO-7: ChatGPT Plus の開発者モードで、書き込み系のツール（追加・完了・変更）が使えるか。実機で確認する
 - TODO-5: iPhoneのHEIC画像がブラウザでJPEGに変換されるか、実機で確認する
 - TODO-6: Deno（Edge Functions）上でWeb Push送信ライブラリが動くか、実装時に確認する
 
@@ -64,8 +65,8 @@
 
 ### 1.4 設定画面
 - 通知のオン／オフ（オンにするとき通知の許可を求める。ユーザーがタップしたときに要求すること）
-- ショートカット用アクセストークンの発行・失効（Phase 3）
-- AI秘書の設定（Phase 4）
+- 連携中のアプリ（ChatGPT など）の一覧と解除、AIの操作履歴（Phase 3）
+- バージョン表示と「アップデートを確認」
 - ログアウト
 
 ### 1.5 ログイン画面
@@ -148,7 +149,18 @@ create table push_subscriptions (
   created_at timestamptz not null default now()
 );
 
--- ショートカット用トークン（Phase 3）
+-- AI の操作記録（Phase 3。OAuth クライアント経由の書き込みを残す）
+create table agent_actions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users,
+  client_id text,                     -- JWT の client_id（DB側で自動で入れる）
+  action text not null,               -- add_task / set_task_done など
+  target_id uuid,
+  summary text not null,
+  created_at timestamptz not null default now()
+);
+
+-- ショートカット用トークン（旧 Phase 3。今は使わない）
 create table api_tokens (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users,
@@ -274,33 +286,37 @@ create table api_tokens (
 - [ ] ルーティーンの通知時刻に、未完了であれば通知が届き、完了済みであれば届かない
 - [ ] 同じ通知が2回届かない
 
-### Phase 3：ショートカット連携
-- [ ] 設定画面でトークンを発行でき、平文の表示は発行時の1回だけ
-- [ ] Edge Function `quick-add`：`POST { title, date? }`（`Authorization: Bearer <token>`）でタスクを追加できる。dateを省略した場合は今日
-- [ ] iOSショートカット「URLの内容を取得」から追加でき、Siriで実行できる
-- [ ] 失効させたトークンでは 401 が返る
+### Phase 3：AI秘書の接続口（MCP）（④、2026-11-11 変更）
+旧 Phase 3（ショートカット用トークン）と旧 Phase 4（アプリ内でLLMを呼ぶAI秘書）を置き換える。
+ChatGPT の「開発者モード」に自作のコネクタとして登録し、ChatGPT の定期実行（スケジュール）からも使う。
+LLMの費用はChatGPTの契約内で済み、アプリ側にLLMのAPIキーは置かない。
 
-### Phase 4：AI秘書（④）
-- 構成：Edge Function `assistant` が会話を受け取り、LLMにツールを渡して実行する
-- ツール（すべて本人のデータに限定する）
-  - `list_tasks(from, to)`：期間のタスクとルーティーンを返す
-  - `add_task(title, date, memo?)`
-  - `complete_task(id | routine_id+date)`
-  - `move_task(id, new_date)`
-  - `update_memo(id, memo)`
-  - 削除系のツールは用意しない（削除は画面からのみ）
-- LLM接続はインターフェース `LLMProvider` で抽象化し、アダプタを2つ用意する
-  - `MuseAdapter`：Meta Model API（OpenAI互換）。日本から利用できる場合のみ
-  - `ClaudeAdapter`：公式SDK `@anthropic-ai/sdk` を使う。実装時に最新のモデルIDとAPI仕様を確認する
-  - 使うアダプタはSecretsの環境変数で切り替える
-- 送信範囲：画像はAIに送らない（v1）。タイトルとメモのみ
+- 構成
+  - Edge Function `mcp`：リモートMCPサーバー（Streamable HTTP、リクエストごとにサーバーを作るステートレス構成）
+  - 認証：Supabase Auth の OAuth 2.1 サーバー（認可コード＋PKCE、動的クライアント登録）。署名鍵は非対称（ES256）
+  - 同意画面：`https://hipchin.github.io/task-app/oauth/consent`（アプリ内。ログインしていなければ先にログイン）
+  - ツールはユーザー本人のトークンで動き、RLS がそのまま効く
+- ツール（削除系は用意しない）
+  - 読む：`list_tasks(from, to)`（期間のタスクとルーティーン）、`list_open_tasks()`（対応中）、`list_routines()`
+  - 書く：`add_task(title, date, due_date?, memo?)`、`set_task_done(id, done)`、`update_task(id, title?, date?, due_date?)`、`append_task_memo(id, text)`、`set_routine_done(routine_id, date, done)`
+- 制限（DBで強制する。OAuthクライアントのトークンは JWT に `client_id` を持つ）
+  - タスクの削除、ルーティーン本体の作成・変更・削除、画像・通知購読・トークンの操作はできない
+  - 書き込みはすべて `agent_actions`（操作記録）に残す
+- 設定画面
+  - 「連携中のアプリ」：許可したアプリの一覧と「連携を解除」
+  - 「AIの操作履歴」：直近20件
 - 受け入れ条件
-  - [ ] 「明日の予定を教えて」で明日のタスクとルーティーンを答える
-  - [ ] 「来週月曜に歯医者を追加して」でタスクが追加され、一覧に反映される
-  - [ ] 「今日の未完了を明日に移して」で通常タスクだけが移動する（ルーティーンは移動しない）
-  - [ ] 環境変数を変えるだけでアダプタを切り替えられる
+  - [ ] ChatGPT にコネクタを追加でき、同意画面で許可すると接続できる
+  - [ ] ChatGPT から「明日の予定は？」で、明日のタスクとルーティーンを答える
+  - [ ] ChatGPT から「対応中は？」で、対応中のタスクを締め切りの近い順に答える
+  - [ ] ChatGPT からタスクを追加・完了でき、5秒以内に一覧へ反映される（TODO-7）
+  - [ ] ChatGPT のトークンでは、タスクの削除やルーティーン本体の変更がDBで拒否される（テストで確認）
+  - [ ] 書き込みが操作記録に残り、設定画面で見られる
+  - [ ] 「連携を解除」すると、以後のツール呼び出しが拒否される
+  - [ ] ChatGPT の定期実行から呼び出せる
 
----
+### Phase 4：（旧ショートカット連携）
+- 必要になったら、Phase 3 の MCP とは別に検討する
 
 ## 6. ディレクトリ構成（案）
 

@@ -34,7 +34,7 @@ export function RoutinesScreen() {
       {q.isPending ? <p className="loading-text">読み込み中…</p> : null}
       {q.isError ? (
         <div className="inline-error" role="alert">
-          <p>{errorMessage(q.error, 'ルーティーンを読み込め')}</p>
+          <p>{errorMessage(q.error, 'ルーティーンを読み込み')}</p>
         </div>
       ) : null}
       {q.data && list.length === 0 ? (

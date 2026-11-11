@@ -1201,3 +1201,64 @@ button:disabled {
 .toasts {
   bottom: calc(var(--space-20) + var(--space-4) + env(safe-area-inset-bottom));
 }
+
+/* ---------------------------------------------------------------------------
+   AI 連携（設定・同意画面）
+--------------------------------------------------------------------------- */
+.subsection-title {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+.plain-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-separator);
+}
+
+.plain-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--space-12);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-separator);
+}
+
+.plain-item-main {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
+}
+
+.plain-item-title {
+  font-weight: var(--weight-semibold);
+}
+
+.consent-body {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.consent-lead {
+  font-size: var(--text-lg);
+  line-height: var(--leading-ui);
+  overflow-wrap: anywhere;
+}
+
+.consent .notice {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.consent-list {
+  margin: 0;
+  padding-left: var(--space-5);
+}

@@ -1,5 +1,5 @@
-import { compare, dayOfWeek, eachDay, parse, type DateStr } from './date'
-import type { Routine, RoutineLog } from './types'
+import { compare, dayOfWeek, eachDay, parse, type DateStr } from './date.ts'
+import type { Routine, RoutineLog } from './types.ts'
 
 export interface RoutineOccurrence<R extends Routine = Routine, L extends RoutineLog = RoutineLog> {
   routine: R

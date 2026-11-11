@@ -31,7 +31,7 @@ export function RoutineDay({ routineId, date }: { routineId: string; date: strin
       <div className="screen">
         <ScreenHeader title="ルーティーン" />
         <div className="inline-error" role="alert">
-          <p>{logQ.isError ? errorMessage(logQ.error, '記録を読み込め') : 'このルーティーンは見つかりません。削除された可能性があります。'}</p>
+          <p>{logQ.isError ? errorMessage(logQ.error, '記録を読み込み') : 'このルーティーンは見つかりません。削除された可能性があります。'}</p>
         </div>
       </div>
     )

@@ -67,7 +67,7 @@ export function AttachmentsSection({ owner, resolveOwner, disabled }: Props) {
       </span>
       {q.isError ? (
         <p className="field-error" role="alert">
-          {errorMessage(q.error, '画像を読み込め')}
+          {errorMessage(q.error, '画像を読み込み')}
         </p>
       ) : null}
       <ul className="thumbs" aria-labelledby="attachments-label">

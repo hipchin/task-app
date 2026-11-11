@@ -25,7 +25,7 @@ export function TaskDetail({ id }: { id: string }) {
       <div className="screen">
         <ScreenHeader title="詳細" />
         <div className="inline-error" role="alert">
-          <p>{q.isError ? errorMessage(q.error, 'タスクを読み込め') : 'このタスクは見つかりません。削除された可能性があります。'}</p>
+          <p>{q.isError ? errorMessage(q.error, 'タスクを読み込み') : 'このタスクは見つかりません。削除された可能性があります。'}</p>
         </div>
       </div>
     )

@@ -21,3 +21,6 @@ export const ATTACHMENTS_BUCKET = 'attachments'
 
 /** 初回の自分のアカウント登録用。登録後はリポジトリ Variables で false にする */
 export const allowSignup = import.meta.env.VITE_ALLOW_SIGNUP === 'true'
+
+/** ChatGPT などに登録する MCP サーバーの URL（SPEC Phase 3） */
+export const mcpServerUrl = isConfigured ? `${url.replace(/\/$/, '')}/functions/v1/mcp` : ''

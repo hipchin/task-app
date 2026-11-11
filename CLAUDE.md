@@ -16,4 +16,5 @@
 ## コマンド
 - リポジトリ直下: `npx supabase start`（ローカル）/ `npx supabase db push`（本番へマイグレーション適用）
 - web/: `npm run dev` / `npm test`（単体）/ `npm run test:rls`（RLS、ローカルSupabase必須）/ `npm run test:e2e`（Playwright、ローカルSupabase必須）/ `npm run lint` / `npm run build`
+- MCP（AI連携）: `npx supabase functions serve`（ローカル）/ `npx supabase functions deploy mcp`（本番）。`supabase/functions/mcp` は `web/src/lib` の純粋関数を相対パスで共有する（そのため lib 内の import は `.ts` 拡張子付き）
 - デプロイ: main へ push → GitHub Actions → GitHub Pages。ビルド値はリポジトリ Variables（VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / VITE_ALLOW_SIGNUP）

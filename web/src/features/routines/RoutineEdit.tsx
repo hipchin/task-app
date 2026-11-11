@@ -27,7 +27,7 @@ export function RoutineEdit({ id }: { id: string | null }) {
       <div className="screen">
         <ScreenHeader title="ルーティーン" backLabel="戻る" backTo={{ name: 'routines' }} />
         <div className="inline-error" role="alert">
-          <p>{q.isError ? errorMessage(q.error, '読み込め') : 'このルーティーンは見つかりません。削除された可能性があります。'}</p>
+          <p>{q.isError ? errorMessage(q.error, '読み込み') : 'このルーティーンは見つかりません。削除された可能性があります。'}</p>
         </div>
       </div>
     )

@@ -1,4 +1,4 @@
-import type { DateStr } from './date'
+import type { DateStr } from './date.ts'
 
 export type RuleType = 'daily' | 'weekly' | 'monthly' | 'weekdays'
 

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { clearPersistedCache } from '../../lib/queryClient'
 import { errorMessage } from '../../lib/errors'
 import { checkForUpdate } from '../../lib/appUpdate'
+import { ConnectSection } from '../connect/ConnectSection'
 
 type UpdateState = 'idle' | 'checking' | 'updating' | 'latest' | 'unsupported' | 'error'
 
@@ -102,6 +103,8 @@ export function SettingsScreen({ email }: { email: string }) {
             </p>
           ) : null}
         </section>
+
+        <ConnectSection />
 
         <UpdateSection />
       </div>

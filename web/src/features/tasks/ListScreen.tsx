@@ -138,7 +138,7 @@ export function ListScreen() {
 
       {error && !tasksQ.data ? (
         <div className="inline-error" role="alert">
-          <p>{errorMessage(error, '一覧を読み込め')}</p>
+          <p>{errorMessage(error, '一覧を読み込み')}</p>
           <button type="button" className="btn btn-secondary" onClick={() => void tasksQ.refetch()}>
             再読み込み
           </button>

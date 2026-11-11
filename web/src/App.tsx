@@ -13,6 +13,7 @@ import { SettingsScreen } from './features/settings/SettingsScreen'
 import { LoginScreen } from './features/settings/LoginScreen'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { TabBar } from './components/TabBar'
+import { ConsentScreen } from './features/connect/ConsentScreen'
 
 export default function App() {
   const auth = useAuth()
@@ -27,12 +28,19 @@ export default function App() {
       ) : null}
       {auth.status === 'loading' ? null : auth.status === 'signedOut' ? (
         <LoginScreen />
+      ) : isConsentPath() ? (
+        <ConsentScreen />
       ) : (
         <SignedIn userId={auth.session.user.id} email={auth.session.user.email ?? ''} />
       )}
       <UpdatePrompt />
     </>
   )
+}
+
+/** OAuth の同意画面（…/task-app/oauth/consent?authorization_id=…）。ハッシュではなく実際のパスで来る */
+function isConsentPath(): boolean {
+  return /\/oauth\/consent\/?$/.test(location.pathname)
 }
 
 function SignedIn({ userId, email }: { userId: string; email: string }) {

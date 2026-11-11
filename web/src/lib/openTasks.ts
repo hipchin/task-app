@@ -1,4 +1,4 @@
-import { diffDays, parse, type DateStr } from './date'
+import { diffDays, parse, type DateStr } from './date.ts'
 
 /** 「対応中」の対象（SPEC §3.7）：未完了で日付が今日より前の通常タスク */
 export function isOpenTask(t: { done: boolean; date: DateStr }, today: DateStr): boolean {
