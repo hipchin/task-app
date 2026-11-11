@@ -99,9 +99,12 @@ test('ChatGPT と同じ手順で接続し、読み書きでき、禁止操作は
   await expect(page.getByRole('heading', { name: 'アプリの連携' })).toBeVisible()
   await expect(page.getByText(clientName)).toBeVisible()
   await expect(page.getByText('タスクの削除、ルーティーン本体の変更、画像の操作はできません。', { exact: false })).toBeVisible()
+  // 戻り先が ChatGPT ではない（テストでは localhost）ので警告が出て、安全な選択が先に来る
+  await expect(page.getByRole('alert')).toContainText('この接続元は ChatGPT ではありません')
+  await expect(page.getByRole('button', { name: '許可する', exact: true })).toHaveCount(0)
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/consent.png` })
   const callback = page.waitForRequest((r) => r.url().startsWith(REDIRECT))
-  await page.getByRole('button', { name: '許可する' }).click()
+  await page.getByRole('button', { name: 'それでも許可する' }).click()
   const cb = new URL((await callback).url())
   expect(cb.searchParams.get('state')).toBe('xyz')
   const code = cb.searchParams.get('code') ?? ''

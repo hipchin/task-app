@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { errorMessage } from '../../lib/errors'
+import { isTrustedRedirect } from '../../lib/trustedClients'
 
-type Details = { authorizationId: string; clientName: string; redirectHost: string; email: string }
+type Details = { authorizationId: string; clientName: string; redirectHost: string; trusted: boolean; email: string }
 
 type State =
   | { kind: 'loading' }
@@ -48,6 +49,7 @@ export function ConsentScreen() {
           authorizationId: data.authorization_id,
           clientName: data.client.name || '名前のないアプリ',
           redirectHost: hostOf(data.redirect_uri),
+          trusted: isTrustedRedirect(data.redirect_uri),
           email: data.user.email,
         },
       })
@@ -88,6 +90,14 @@ export function ConsentScreen() {
           <p className="consent-lead">
             「<strong>{state.details.clientName}</strong>」が、このアプリへの接続を求めています。
           </p>
+          {state.details.trusted ? null : (
+            <div className="consent-warning" role="alert">
+              <p className="consent-warning-title">この接続元は ChatGPT ではありません</p>
+              <p>
+                戻り先が「{state.details.redirectHost}」です。自分で接続の操作をした直後でなければ、だれかがあなたのタスクを読み取ろうとしている可能性があります。心当たりがなければ「許可しない」を押してください。
+              </p>
+            </div>
+          )}
           <div className="notice">
             <p>許可すると、次のことができるようになります。</p>
             <ul className="consent-list">
@@ -103,12 +113,26 @@ export function ConsentScreen() {
             戻り先：{state.details.redirectHost}
           </p>
           <div className="form-actions">
-            <button type="button" className="btn btn-primary" disabled={busy} aria-busy={busy} onClick={() => void decide(true)}>
-              許可する
-            </button>
-            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void decide(false)}>
-              許可しない
-            </button>
+            {state.details.trusted ? (
+              <>
+                <button type="button" className="btn btn-primary" disabled={busy} aria-busy={busy} onClick={() => void decide(true)}>
+                  許可する
+                </button>
+                <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void decide(false)}>
+                  許可しない
+                </button>
+              </>
+            ) : (
+              <>
+                {/* 信頼できない接続元では、安全な選択を目立たせる */}
+                <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void decide(false)}>
+                  許可しない
+                </button>
+                <button type="button" className="btn btn-danger-text" disabled={busy} aria-busy={busy} onClick={() => void decide(true)}>
+                  それでも許可する
+                </button>
+              </>
+            )}
           </div>
         </div>
       ) : null}
