@@ -1,36 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  addMonths,
-  dayOfWeek,
-  eachDay,
-  formatDayLabel,
-  formatPeriod,
-  periodFrom,
-  todayJst,
-  type DateStr,
-} from '../../lib/date'
+import { addMonths, dayOfWeek, formatDayLabel, formatPeriod, parse, periodFrom, todayJst, type DateStr } from '../../lib/date'
 import { expandRoutines } from '../../lib/expandRoutines'
 import { useOnline } from '../../lib/online'
 import { errorMessage } from '../../lib/errors'
 import type { Routine, RoutineLogWithAttachments, TaskWithAttachments } from '../../lib/types'
 import { useAddTask, useOpenTasks, useTasks, useToggleTask } from './api'
 import { openTaskNote } from '../../lib/openTasks'
+import { buildDayGroups, oldestDate, splitOpenTasks, type DayGroup } from '../../lib/listView'
 import { useRoutineLogs, useRoutines, useToggleRoutine } from '../routines/api'
 import { useToast } from '../../components/toastContext'
 import { Link } from '../../components/Link'
-import {
-  IconCheck,
-  IconChevronRight,
-  IconClip,
-  IconNextPeriod,
-  IconPlus,
-  IconPrevPeriod,
-  IconRepeat,
-} from '../../components/Icons'
+import { IconCheck, IconChevronLeft, IconChevronRight, IconClip, IconPlus, IconRepeat } from '../../components/Icons'
 
 const START_KEY = 'task-app:list-start'
 const SHOW_ALL_KEY = 'task-app:show-all'
-const OPEN_COLLAPSED_KEY = 'task-app:open-collapsed'
+// 初期値は閉じる（2026-11-12 から。旧キー open-collapsed は使わない）
+const OPEN_EXPANDED_KEY = 'task-app:open-expanded'
+const ROUTINES_EXPANDED_KEY = 'task-app:routines-expanded'
 
 function readSession(key: string): string | null {
   try {
@@ -61,9 +47,15 @@ function writeLocal(key: string, value: string) {
   }
 }
 
-type Row =
-  | { kind: 'routine'; key: string; routine: Routine; log: RoutineLogWithAttachments | null; done: boolean }
-  | { kind: 'task'; key: string; task: TaskWithAttachments }
+type RoutineItem = {
+  key: string
+  date: DateStr
+  routine: Routine
+  log: RoutineLogWithAttachments | null
+  done: boolean
+}
+
+type OnError = (e: unknown, action: string) => void
 
 export function ListScreen() {
   const today = todayJst()
@@ -71,8 +63,10 @@ export function ListScreen() {
   // TODO-1: 「すべて」ボタンの意味は未決。仮に「すべて表示 ⇔ 未完了のみ」の切り替えとする
   const [showAll, setShowAll] = useState<boolean>(() => readLocal(SHOW_ALL_KEY) !== 'false')
   const { from, to } = periodFrom(start)
+  const hasToday = from <= today && today <= to
   const online = useOnline()
   const toast = useToast()
+  const onError: OnError = (e, action) => toast.show(errorMessage(e, action))
 
   useEffect(() => writeSession(START_KEY, start), [start])
   useEffect(() => writeLocal(SHOW_ALL_KEY, String(showAll)), [showAll])
@@ -80,47 +74,58 @@ export function ListScreen() {
   const tasksQ = useTasks(from, to)
   const routinesQ = useRoutines()
   const logsQ = useRoutineLogs(from, to)
+  const openQ = useOpenTasks(today)
 
-  const byDay = useMemo(() => {
-    const map = new Map<DateStr, Row[]>()
-    const push = (d: DateStr, r: Row) => {
-      const list = map.get(d)
-      if (list) list.push(r)
-      else map.set(d, [r])
-    }
-    // ルーティーン → 通常タスクの順（SPEC §1.1）
-    for (const o of expandRoutines(routinesQ.data ?? [], logsQ.data ?? [], from, to)) {
-      push(o.date, { kind: 'routine', key: `r:${o.routine.id}:${o.date}`, routine: o.routine, log: o.log, done: o.done })
-    }
-    for (const t of tasksQ.data ?? []) push(t.date, { kind: 'task', key: `t:${t.id}`, task: t })
-    return map
-  }, [routinesQ.data, logsQ.data, tasksQ.data, from, to])
+  const groups = useMemo(() => {
+    const tasks = (tasksQ.data ?? []).filter((t) => showAll || !t.done)
+    const routines: RoutineItem[] = expandRoutines(routinesQ.data ?? [], logsQ.data ?? [], from, to).map((o) => ({
+      key: `r:${o.routine.id}:${o.date}`,
+      date: o.date,
+      routine: o.routine,
+      log: o.log,
+      done: o.done,
+    }))
+    return buildDayGroups(from, to, today, tasks, routines)
+  }, [tasksQ.data, routinesQ.data, logsQ.data, from, to, today, showAll])
+
+  const { urgent, rest } = splitOpenTasks(openQ.data ?? [], today, hasToday)
 
   const loading = (tasksQ.isPending || routinesQ.isPending || logsQ.isPending) && !tasksQ.data
   const error = tasksQ.error ?? routinesQ.error ?? logsQ.error
-  const listRef = useRef<HTMLDivElement>(null)
 
   const moveTo = (s: DateStr) => {
     setStart(s)
     window.scrollTo({ top: 0 })
   }
 
+  const todayGroup = groups.find((g) => g.date === today)
+  const otherGroups = groups.filter((g) => g.date !== today)
+
+  const open = (
+    <OpenSection
+      list={rest}
+      isError={openQ.isError && !openQ.data}
+      error={openQ.error}
+      onRetry={() => void openQ.refetch()}
+      today={today}
+      online={online}
+      onError={onError}
+    />
+  )
+
   return (
     <div className="screen">
       <header className="list-header">
         <div className="list-header-top">
-          <div className="period-nav" role="group" aria-label="期間の移動">
+          <h1 className="list-title">やること</h1>
+          <div className="period-nav" role="group" aria-label="期間の移動（1か月）">
             <button type="button" className="period-btn" onClick={() => moveTo(addMonths(start, -1))} aria-label="前の期間">
-              <IconPrevPeriod className="icon icon-sm" />
-            </button>
-            <button type="button" className="period-btn period-today" onClick={() => moveTo(today)}>
-              今日
+              <IconChevronLeft className="icon icon-sm" />
             </button>
             <button type="button" className="period-btn" onClick={() => moveTo(addMonths(start, 1))} aria-label="次の期間">
-              <IconNextPeriod className="icon icon-sm" />
+              <IconChevronRight className="icon icon-sm" />
             </button>
           </div>
-          <h1 className="list-title">やること</h1>
           <button
             type="button"
             className="btn btn-secondary btn-compact filter-toggle"
@@ -131,10 +136,17 @@ export function ListScreen() {
           </button>
         </div>
       </header>
-      <p className="period-label">
-        <span className="visually-hidden">期間: </span>
-        {formatPeriod(from, to)}
-      </p>
+      {hasToday ? null : (
+        <div className="period-bar">
+          <p className="period-label">
+            <span className="visually-hidden">期間: </span>
+            {formatPeriod(from, to)}
+          </p>
+          <button type="button" className="btn btn-secondary btn-compact back-to-today" onClick={() => moveTo(today)}>
+            今日へ戻る
+          </button>
+        </div>
+      )}
 
       {error && !tasksQ.data ? (
         <div className="inline-error" role="alert">
@@ -147,158 +159,173 @@ export function ListScreen() {
 
       {loading ? <DelayedLoading /> : null}
 
-      <OpenSection
-        today={today}
-        online={online}
-        onError={(e, action) => toast.show(errorMessage(e, action))}
-      />
-
-      <div className="day-list" ref={listRef} aria-busy={loading}>
-        {loading
-          ? null
-          : eachDay(from, to).map((d) => (
-              <DaySection
-                key={d}
-                date={d}
-                isToday={d === today}
-                rows={(byDay.get(d) ?? []).filter((r) => showAll || !(r.kind === 'task' ? r.task.done : r.done))}
-                online={online}
-                onError={(e, action) => toast.show(errorMessage(e, action))}
-              />
-            ))}
-      </div>
+      {hasToday ? (
+        <>
+          {loading ? null : (
+            <TodaySection
+              date={today}
+              tasks={todayGroup?.tasks ?? []}
+              urgent={urgent}
+              routines={todayGroup?.routines ?? []}
+              showAll={showAll}
+              online={online}
+              onError={onError}
+            />
+          )}
+          {open}
+          {loading ? null : (
+            <section className="upcoming" aria-labelledby="upcoming-heading">
+              <h2 id="upcoming-heading" className="group-heading">
+                これから
+              </h2>
+              {otherGroups.length === 0 ? (
+                <p className="empty-note">これからの予定はありません</p>
+              ) : (
+                otherGroups.map((g) => (
+                  <DayGroupSection key={g.date} group={g} showAll={showAll} online={online} onError={onError} />
+                ))
+              )}
+            </section>
+          )}
+        </>
+      ) : (
+        <>
+          {open}
+          {loading ? null : (
+            <div className="day-list" aria-busy={loading}>
+              {otherGroups.length === 0 ? <p className="empty-note">この期間のタスクはありません</p> : null}
+              {otherGroups.map((g) => (
+                <DayGroupSection key={g.date} group={g} showAll={showAll} online={online} onError={onError} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
 
-/** 「対応中」：日付を過ぎた未完了のタスク（SPEC §3.7）。ルーティーンは含めない */
-function OpenSection({
-  today,
-  online,
-  onError,
-}: {
-  today: DateStr
-  online: boolean
-  onError: (e: unknown, action: string) => void
-}) {
-  const q = useOpenTasks(today)
-  const toggle = useToggleTask()
-  const [collapsed, setCollapsed] = useState(() => readLocal(OPEN_COLLAPSED_KEY) === 'true')
-  useEffect(() => writeLocal(OPEN_COLLAPSED_KEY, String(collapsed)), [collapsed])
-  if (q.isError && !q.data) {
-    return (
-      <section className="open-section" aria-labelledby="open-heading">
-        <h2 id="open-heading" className="open-heading open-heading-plain">
-          対応中
-        </h2>
-        <div className="inline-error" role="alert">
-          <p>{errorMessage(q.error, '対応中のタスクを読み込み')}</p>
-          <button type="button" className="btn btn-secondary" onClick={() => void q.refetch()}>
-            再読み込み
-          </button>
-        </div>
-      </section>
-    )
-  }
-  const list = q.data ?? []
-  if (list.length === 0) return null
-  const remaining = list.filter((t) => !t.done).length
-  return (
-    <section className="open-section" aria-labelledby="open-heading">
-      <h2 id="open-heading" className="open-heading">
-        <button
-          type="button"
-          className="open-toggle"
-          aria-expanded={!collapsed}
-          aria-controls="open-rows"
-          onClick={() => setCollapsed((v) => !v)}
-        >
-          <IconChevronRight className={`icon icon-sm open-chevron${collapsed ? '' : ' open-chevron-on'}`} />
-          対応中
-          <span className="open-count">{remaining}件</span>
-        </button>
-      </h2>
-      {collapsed ? null : (
-        <ul className="rows" id="open-rows">
-          {list.map((t) => (
-            <TaskRow
-              key={t.id}
-              title={t.title}
-              done={t.done}
-              repeat={false}
-              clip={t.attachments.length > 0}
-              note={openTaskNote(t, today)}
-              disabled={!online}
-              detail={{ name: 'task', id: t.id }}
-              onToggle={() =>
-                toggle.mutate({ id: t.id, done: !t.done }, { onError: (e) => onError(e, '完了状態を変更') })
-              }
-            />
-          ))}
-        </ul>
-      )}
-    </section>
-  )
-}
-
-function DelayedLoading() {
-  // 300ms 以内に終わる読み込みでは表示しない（PF-MOT-05）
-  const [show, setShow] = useState(false)
-  useEffect(() => {
-    const t = setTimeout(() => setShow(true), 300)
-    return () => clearTimeout(t)
-  }, [])
-  return show ? (
-    <p className="loading-text" role="status">
-      読み込み中…
-    </p>
-  ) : null
-}
-
-function DaySection({
+/** 「今日」：今日のタスク → 締め切りが近い対応中 → ルーティーンのまとめ → 追加（SPEC §1.1） */
+function TodaySection({
   date,
-  isToday,
-  rows,
+  tasks,
+  urgent,
+  routines,
+  showAll,
   online,
   onError,
 }: {
   date: DateStr
-  isToday: boolean
-  rows: Row[]
+  tasks: TaskWithAttachments[]
+  urgent: TaskWithAttachments[]
+  routines: RoutineItem[]
+  showAll: boolean
   online: boolean
-  onError: (e: unknown, action: string) => void
+  onError: OnError
 }) {
-  const dow = dayOfWeek(date)
-  const dayClass = dow === 6 ? 'day-sat' : dow === 0 ? 'day-sun' : ''
-  const toggleTask = useToggleTask()
-  const toggleRoutine = useToggleRoutine()
-  const headingId = `day-${date}`
-
   return (
-    <section className={`day${isToday ? ' day-today' : ''}`} aria-labelledby={headingId} data-date={date}>
-      <h2 id={headingId} className={`day-heading ${dayClass}`}>
-        {formatDayLabel(date)}
-        {isToday ? <span className="today-badge">今日</span> : null}
+    <section className="day day-today" aria-labelledby="today-heading" data-date={date}>
+      <h2 id="today-heading" className="today-heading">
+        今日 <span className="today-date">{formatDayLabel(date)}</span>
       </h2>
       <ul className="rows">
-        {rows.map((r) =>
-          r.kind === 'task' ? (
-            <TaskRow
-              key={r.key}
-              title={r.task.title}
-              done={r.task.done}
-              repeat={false}
-              clip={r.task.attachments.length > 0}
-              disabled={!online}
-              detail={{ name: 'task', id: r.task.id }}
-              onToggle={() =>
-                toggleTask.mutate(
-                  { id: r.task.id, done: !r.task.done },
-                  { onError: (e) => onError(e, '完了状態を変更') },
-                )
-              }
-            />
-          ) : (
+        {tasks.map((t) => (
+          <TaskItem key={t.id} task={t} online={online} onError={onError} />
+        ))}
+        {urgent.map((t) => (
+          <TaskItem key={t.id} task={t} note={openTaskNote(t, date)} online={online} onError={onError} />
+        ))}
+      </ul>
+      <RoutineGroup date={date} items={routines} showAll={showAll} online={online} onError={onError} remember />
+      <div className="quick-add">
+        <QuickAdd date={date} label="今日" disabled={!online} onError={onError} />
+      </div>
+    </section>
+  )
+}
+
+/** 今日以外の1日分（「これから」や、今日を含まない期間） */
+function DayGroupSection({
+  group,
+  showAll,
+  online,
+  onError,
+}: {
+  group: DayGroup<TaskWithAttachments, RoutineItem>
+  showAll: boolean
+  online: boolean
+  onError: OnError
+}) {
+  const dow = dayOfWeek(group.date)
+  const dayClass = dow === 6 ? 'day-sat' : dow === 0 ? 'day-sun' : ''
+  const headingId = `day-${group.date}`
+  return (
+    <section className="day" aria-labelledby={headingId} data-date={group.date}>
+      <h3 id={headingId} className={`day-heading ${dayClass}`}>
+        {formatDayLabel(group.date)}
+      </h3>
+      {group.tasks.length > 0 ? (
+        <ul className="rows">
+          {group.tasks.map((t) => (
+            <TaskItem key={t.id} task={t} online={online} onError={onError} />
+          ))}
+        </ul>
+      ) : null}
+      <RoutineGroup date={group.date} items={group.routines} showAll={showAll} online={online} onError={onError} />
+    </section>
+  )
+}
+
+/**
+ * ルーティーンのまとめ行。タップで個別の行を開閉する。
+ * 開閉状態は「今日」のぶんだけ端末に保存する（過去の日は毎回閉じた状態から。全部開くと一覧が長くなるため）
+ */
+function RoutineGroup({
+  date,
+  items,
+  showAll,
+  online,
+  onError,
+  remember = false,
+}: {
+  date: DateStr
+  items: RoutineItem[]
+  showAll: boolean
+  online: boolean
+  onError: OnError
+  remember?: boolean
+}) {
+  const [expanded, setExpanded] = useState(() => remember && readLocal(ROUTINES_EXPANDED_KEY) === 'true')
+  const toggleRoutine = useToggleRoutine()
+  if (items.length === 0) return null
+  const doneCount = items.filter((r) => r.done).length
+  const allDone = doneCount === items.length
+  const listId = `routines-${date}`
+  const visible = items.filter((r) => showAll || !r.done)
+  const flip = () => {
+    const next = !expanded
+    setExpanded(next)
+    if (remember) writeLocal(ROUTINES_EXPANDED_KEY, String(next))
+  }
+  return (
+    <div className="routine-group">
+      <button
+        type="button"
+        className={`routine-summary${allDone ? ' routine-summary-done' : ''}`}
+        aria-expanded={expanded}
+        aria-controls={listId}
+        onClick={flip}
+      >
+        <IconRepeat className="icon icon-sm routine-summary-icon" />
+        <span className="routine-summary-count">
+          ルーティーン {doneCount}/{items.length} 済
+        </span>
+        <span className="routine-summary-names">{items.map((r) => r.routine.title).join('・')}</span>
+        <IconChevronRight className={`icon icon-sm open-chevron${expanded ? ' open-chevron-on' : ''}`} />
+      </button>
+      {expanded ? (
+        <ul className="rows" id={listId}>
+          {visible.map((r) => (
             <TaskRow
               key={r.key}
               title={r.routine.title}
@@ -314,14 +341,122 @@ function DaySection({
                 )
               }
             />
-          ),
-        )}
-      </ul>
-      <div className="quick-add">
-        <QuickAdd date={date} label={formatDayLabel(date)} disabled={!online} onError={onError} />
-      </div>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
+function TaskItem({
+  task,
+  note,
+  online,
+  onError,
+}: {
+  task: TaskWithAttachments
+  note?: { text: string; overdue: boolean }
+  online: boolean
+  onError: OnError
+}) {
+  const toggle = useToggleTask()
+  return (
+    <TaskRow
+      title={task.title}
+      done={task.done}
+      repeat={false}
+      clip={task.attachments.length > 0}
+      note={note}
+      disabled={!online}
+      detail={{ name: 'task', id: task.id }}
+      onToggle={() =>
+        toggle.mutate({ id: task.id, done: !task.done }, { onError: (e) => onError(e, '完了状態を変更') })
+      }
+    />
+  )
+}
+
+/** 「対応中」：日付を過ぎた未完了のタスク（SPEC §3.7）。初期値は閉じる。今日に出したものは除いて渡される */
+function OpenSection({
+  list,
+  isError,
+  error,
+  onRetry,
+  today,
+  online,
+  onError,
+}: {
+  list: TaskWithAttachments[]
+  isError: boolean
+  error: unknown
+  onRetry: () => void
+  today: DateStr
+  online: boolean
+  onError: OnError
+}) {
+  const [expanded, setExpanded] = useState(() => readLocal(OPEN_EXPANDED_KEY) === 'true')
+  useEffect(() => writeLocal(OPEN_EXPANDED_KEY, String(expanded)), [expanded])
+  if (isError) {
+    return (
+      <section className="open-section" aria-labelledby="open-heading">
+        <h2 id="open-heading" className="open-heading open-heading-plain">
+          対応中
+        </h2>
+        <div className="inline-error" role="alert">
+          <p>{errorMessage(error, '対応中のタスクを読み込み')}</p>
+          <button type="button" className="btn btn-secondary" onClick={onRetry}>
+            再読み込み
+          </button>
+        </div>
+      </section>
+    )
+  }
+  if (list.length === 0) return null
+  const oldest = oldestDate(list)
+  return (
+    <section className="open-section" aria-labelledby="open-heading">
+      <h2 id="open-heading" className="open-heading">
+        <button
+          type="button"
+          className="open-toggle"
+          aria-expanded={expanded}
+          aria-controls="open-rows"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <IconChevronRight className={`icon icon-sm open-chevron${expanded ? ' open-chevron-on' : ''}`} />
+          対応中
+          <span className="open-count">{list.length}件</span>
+          {oldest ? <span className="open-oldest">いちばん古い {formatMonthDay(oldest)}〜</span> : null}
+        </button>
+      </h2>
+      {expanded ? (
+        <ul className="rows" id="open-rows">
+          {list.map((t) => (
+            <TaskItem key={t.id} task={t} note={openTaskNote(t, today)} online={online} onError={onError} />
+          ))}
+        </ul>
+      ) : null}
     </section>
   )
+}
+
+function formatMonthDay(s: DateStr): string {
+  const { m, d } = parse(s)
+  return `${m}月${d}日`
+}
+
+function DelayedLoading() {
+  // 300ms 以内に終わる読み込みでは表示しない（PF-MOT-05）
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 300)
+    return () => clearTimeout(t)
+  }, [])
+  return show ? (
+    <p className="loading-text" role="status">
+      読み込み中…
+    </p>
+  ) : null
 }
 
 function TaskRow({

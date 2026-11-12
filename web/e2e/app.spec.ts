@@ -23,8 +23,9 @@ async function login(page: Page) {
 
 const day = (page: Page, date: string) => page.locator(`section[data-date="${date}"]`)
 
-async function quickAdd(page: Page, date: string, titles: string[]) {
-  const section = day(page, date)
+/** 「今日」のセクションの「＋ 追加」で続けて追加する（日ごとの「＋」は 2026-11-12 に廃止） */
+async function quickAdd(page: Page, titles: string[]) {
+  const section = day(page, TODAY)
   await section.getByRole('button', { name: /にタスクを追加/ }).click()
   const input = section.getByRole('textbox')
   for (const t of titles) {
@@ -32,6 +33,19 @@ async function quickAdd(page: Page, date: string, titles: string[]) {
     await input.press('Enter')
   }
   await input.press('Escape')
+}
+
+/** その日のルーティーンのまとめ行を開く（閉じていれば） */
+async function expandRoutines(page: Page, date: string) {
+  const summary = day(page, date).getByRole('button', { name: /ルーティーン \d+\/\d+ 済/ })
+  if ((await summary.getAttribute('aria-expanded')) !== 'true') await summary.click()
+  await expect(summary).toHaveAttribute('aria-expanded', 'true')
+}
+
+/** 対応中の帯を開く（初期値は閉じている） */
+async function expandOpen(page: Page) {
+  const toggle = page.locator('section.open-section').getByRole('button', { name: /対応中/ })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
 }
 
 test.describe.configure({ mode: 'serial' })
@@ -47,7 +61,7 @@ test('＋で続けて追加でき、すぐに表示される', async ({ page }) 
   await login(page)
   const a = `牛乳を買う ${Date.now()}`
   const b = `メール返信 ${Date.now()}`
-  await quickAdd(page, TODAY, [a, b])
+  await quickAdd(page, [a, b])
   const section = day(page, TODAY)
   await expect(section.getByText(a)).toBeVisible()
   await expect(section.getByText(b)).toBeVisible()
@@ -61,7 +75,7 @@ test('＋で続けて追加でき、すぐに表示される', async ({ page }) 
 test('完了チェックで取り消し線が付き、もう一度押すと戻る', async ({ page }) => {
   await login(page)
   const t = `完了テスト ${Date.now()}`
-  await quickAdd(page, TODAY, [t])
+  await quickAdd(page, [t])
   const row = day(page, TODAY).locator('li.row', { hasText: t })
   const check = row.getByRole('checkbox')
   await check.click()
@@ -80,25 +94,29 @@ test('完了チェックで取り消し線が付き、もう一度押すと戻�
   await expect(day(page, TODAY).getByText(t)).toBeVisible()
 })
 
-test('期間の移動と「今日」へのジャンプ', async ({ page }) => {
+test('期間の移動と「今日へ戻る」', async ({ page }) => {
   await login(page)
   const label = page.locator('.period-label')
-  const initial = await label.textContent()
+  // 今日を含む期間では期間の表示も「今日へ戻る」も出さない
+  await expect(label).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '今日へ戻る' })).toHaveCount(0)
   await page.getByRole('button', { name: '次の期間' }).click()
-  await expect(label).not.toHaveText(initial ?? '')
+  await expect(label).toBeVisible()
+  const next = await label.textContent()
   await expect(day(page, TODAY)).toHaveCount(0)
   await page.getByRole('button', { name: '前の期間' }).click()
   await page.getByRole('button', { name: '前の期間' }).click()
+  await expect(label).not.toHaveText(next ?? '')
   await expect(day(page, TODAY)).toHaveCount(0)
-  await page.getByRole('button', { name: '今日', exact: true }).click()
-  await expect(label).toHaveText(initial ?? '')
+  await page.getByRole('button', { name: '今日へ戻る' }).click()
+  await expect(label).toHaveCount(0)
   await expect(day(page, TODAY)).toBeVisible()
 })
 
 test('詳細画面でメモを編集し、日付を変更できる', async ({ page }) => {
   await login(page)
   const t = `詳細テスト ${Date.now()}`
-  await quickAdd(page, TODAY, [t])
+  await quickAdd(page, [t])
   await day(page, TODAY).getByRole('link', { name: `${t} の詳細` }).click()
   await expect(page.getByRole('heading', { name: '詳細' })).toBeVisible()
   await page.getByLabel('メモ').fill('1行目\n2行目')
@@ -114,7 +132,7 @@ test('詳細画面でメモを編集し、日付を変更できる', async ({ pa
 test('画像を3枚添付でき、縮小後は1枚1MB未満', async ({ page }) => {
   await login(page)
   const t = `画像テスト ${Date.now()}`
-  await quickAdd(page, TODAY, [t])
+  await quickAdd(page, [t])
   await day(page, TODAY).getByRole('link', { name: `${t} の詳細` }).click()
 
   // 4000x3000 のノイズ画像（縮小・再圧縮しないと数MBになる）
@@ -169,7 +187,7 @@ test('画像を3枚添付でき、縮小後は1枚1MB未満', async ({ page }) =
 test('タスクを削除できる（確認ダイアログあり）', async ({ page }) => {
   await login(page)
   const t = `削除テスト ${Date.now()}`
-  await quickAdd(page, TODAY, [t])
+  await quickAdd(page, [t])
   await day(page, TODAY).getByRole('link', { name: `${t} の詳細` }).click()
   await page.getByRole('button', { name: '削除' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'キャンセル' }).click()
@@ -193,25 +211,39 @@ test('ルーティーン：毎週（曜日指定）が該当日だけに表示�
   await expect(page.getByText('毎週 月・水・金')).toBeVisible()
   await page.getByRole('link', { name: '一覧' }).click()
 
-  const sections = page.locator('section[data-date]')
-  await expect(day(page, TODAY)).toBeVisible()
-  const dates = await sections.evaluateAll((els) => els.map((e) => e.getAttribute('data-date') ?? ''))
-  const shown: string[] = []
-  for (const d of dates) {
-    if ((await day(page, d).getByText(name).count()) > 0) shown.push(d)
-  }
-  const expected = dates.filter((d) => [1, 3, 5].includes(new Date(`${d}T00:00:00Z`).getUTCDay()))
+  // 今日：曜日が該当するときだけまとめ行に出る。これから（明日以降）にはルーティーンを出さない
+  const isMwf = (d: string) => [1, 3, 5].includes(new Date(`${d}T00:00:00Z`).getUTCDay())
+  if (isMwf(TODAY)) await expect(day(page, TODAY).locator('.routine-summary', { hasText: name })).toBeVisible()
+  else await expect(day(page, TODAY).getByText(name)).toHaveCount(0)
+  await expect(page.locator('section.upcoming').getByText(name)).toHaveCount(0)
+
+  // 2週間前から始まっていたことにして、前の期間（過去の日）で該当日だけに出ることを確かめる
+  const { url, service } = localSupabase()
+  const admin = createClient(url, service, { auth: { persistSession: false } })
+  await admin.from('routines').update({ start_date: jstDate(-14) }).eq('title', name)
+  await page.reload()
+  await page.getByRole('button', { name: '前の期間' }).click()
+  const expected = Array.from({ length: 14 }, (_, i) => jstDate(i - 14)).filter(isMwf)
+  for (const d of expected) await expect(day(page, d).locator('.routine-summary', { hasText: name })).toBeVisible()
+  const shown = await page
+    .locator('section[data-date]')
+    .filter({ has: page.locator('.routine-summary', { hasText: name }) })
+    .evaluateAll((els) => els.map((e) => e.getAttribute('data-date') ?? ''))
   expect(shown).toEqual(expected)
 
   // 最初の該当日だけ完了にする
   const [first, second] = expected
   if (!first || !second) throw new Error('該当日が足りない')
+  await expandRoutines(page, first)
   await day(page, first).locator('li.row', { hasText: name }).getByRole('checkbox').click()
   await expect(day(page, first).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
   await page.reload()
+  await expandRoutines(page, first)
+  await expandRoutines(page, second)
   await expect(day(page, first).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
   await expect(day(page, second).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
   await expect(day(page, first).locator('li.row', { hasText: name }).getByRole('img', { name: 'ルーティーン' })).toBeVisible()
+  await page.getByRole('button', { name: '今日へ戻る' }).click()
 })
 
 test('ルーティーン：毎日・毎月・平日を作成できる', async ({ page }) => {
@@ -234,11 +266,11 @@ test('ルーティーン：毎日・毎月・平日を作成できる', async ({
   await expect(page.getByText('毎月 15日')).toBeVisible()
   await expect(page.getByText(`平日 ${stamp}`)).toBeVisible()
   await page.goto('./')
-  await expect(day(page, TODAY).getByText(`毎日 ${stamp}`)).toBeVisible()
-  // ルーティーン → 通常タスクの順
-  const rows = day(page, TODAY).locator('li.row')
-  const firstRowHasRepeat = await rows.first().getByRole('img', { name: 'ルーティーン' }).count()
-  expect(firstRowHasRepeat).toBe(1)
+  // 今日はまとめ行に出て、開くと個別の行になる
+  await expect(day(page, TODAY).locator('.routine-summary', { hasText: `毎日 ${stamp}` })).toBeVisible()
+  await expect(day(page, TODAY).locator('li.row', { hasText: `毎日 ${stamp}` })).toHaveCount(0)
+  await expandRoutines(page, TODAY)
+  await expect(day(page, TODAY).locator('li.row', { hasText: `毎日 ${stamp}` })).toBeVisible()
 })
 
 test('ルーティーンの日別詳細で完了とメモを記録できる', async ({ page }) => {
@@ -248,6 +280,7 @@ test('ルーティーンの日別詳細で完了とメモを記録できる', as
   await page.getByLabel('タイトル').fill(name)
   await page.getByRole('button', { name: '保存' }).click()
   await page.goto('./')
+  await expandRoutines(page, TODAY)
   await day(page, TODAY).getByRole('link', { name: `${name} の詳細` }).click()
   await page.getByLabel('この日の完了状態（完了）').check()
   await page.getByLabel('この日のメモ').fill('今日は10回')
@@ -255,8 +288,10 @@ test('ルーティーンの日別詳細で完了とメモを記録できる', as
   await expect(page.getByText('メモを保存しました。')).toBeVisible()
   await expect(page.getByRole('link', { name: 'ルーティーン本体を編集' })).toBeVisible()
   await page.getByRole('button', { name: '一覧' }).click()
+  // 今日のまとめ行の開閉は保存されているので、開いたまま戻る
   await expect(day(page, TODAY).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
-  await expect(day(page, TOMORROW).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
+  // 明日以降にはルーティーンを出さない
+  await expect(page.locator('section.upcoming').getByText(name)).toHaveCount(0)
 })
 
 test('別の端末で追加したタスクが5秒以内に反映される（Realtime）', async ({ browser }) => {
@@ -269,7 +304,7 @@ test('別の端末で追加したタスクが5秒以内に反映される（Real
   // 購読が確立するのを待つ
   await p2.waitForTimeout(1500)
   const t = `同期テスト ${Date.now()}`
-  await quickAdd(p1, TODAY, [t])
+  await quickAdd(p1, [t])
   await expect(day(p2, TODAY).getByText(t)).toBeVisible({ timeout: 5_000 })
   // 完了状態も反映される
   await day(p1, TODAY).locator('li.row', { hasText: t }).getByRole('checkbox').click()
@@ -281,7 +316,7 @@ test('別の端末で追加したタスクが5秒以内に反映される（Real
 test('オフラインで起動しても直近のデータが表示され、編集操作は無効', async ({ page, context }) => {
   await login(page)
   const t = `オフライン ${Date.now()}`
-  await quickAdd(page, TODAY, [t])
+  await quickAdd(page, [t])
   await expect(day(page, TODAY).getByText(t)).toBeVisible()
   // Service Worker の準備とキャッシュの永続化を待つ
   await page.evaluate(async () => {
@@ -323,6 +358,7 @@ test('昨日の未完了ルーティーンは今日に繰り越されず、ル�
   await admin.from('routine_logs').insert({ user_id: userId, routine_id: r.id, date: TWO_DAYS_AGO, done: true })
 
   await login(page)
+  await expandRoutines(page, TODAY)
   // 今日の行は1つだけ（繰り越されて2つにならない）・未完了
   await expect(day(page, TODAY).locator('li.row', { hasText: name })).toHaveCount(1)
   await expect(day(page, TODAY).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
@@ -347,10 +383,12 @@ test('昨日の未完了ルーティーンは今日に繰り越されず、ル�
   // 一昨日・昨日の表示と完了状態は変わらない
   await page.goto('./')
   await page.getByRole('button', { name: '前の期間' }).click()
+  await expandRoutines(page, TWO_DAYS_AGO)
+  await expandRoutines(page, YESTERDAY)
   await expect(day(page, TWO_DAYS_AGO).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
   await expect(day(page, YESTERDAY).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
-  await page.getByRole('button', { name: '今日', exact: true }).click()
-  await expect(day(page, TODAY).locator('li.row', { hasText: name })).toHaveCount(0)
+  await page.getByRole('button', { name: '今日へ戻る' }).click()
+  await expect(day(page, TODAY).getByText(name)).toHaveCount(0)
 })
 
 test('設定画面でアップデートを確認できる', async ({ page }) => {
@@ -375,10 +413,12 @@ test('対応中：日付を過ぎた未完了タスクが出て、ルーティ�
   const stamp = Date.now()
   const late = `書類準備 ${stamp}`
   const due = `見積もり ${stamp}`
+  const soon = `請求書 ${stamp}`
   const routine = `日課 ${stamp}`
   const { error } = await admin.from('tasks').insert([
     { user_id: userId, title: late, date: jstDate(-40) },
     { user_id: userId, title: due, date: jstDate(-2), due_date: jstDate(3) },
+    { user_id: userId, title: soon, date: jstDate(-3), due_date: TOMORROW },
   ])
   if (error) throw error
   await admin.from('routines').insert({ user_id: userId, title: routine, rule_type: 'daily', start_date: jstDate(-5) })
@@ -386,6 +426,12 @@ test('対応中：日付を過ぎた未完了タスクが出て、ルーティ�
   await login(page)
   const open = page.locator('section.open-section')
   await expect(open.getByRole('heading', { name: /対応中/ })).toBeVisible()
+  // 初期値は閉じている
+  await expect(open.getByText(late)).toBeHidden()
+  // 締め切りが明日のものは「今日」に出て、対応中には重ねて出ない
+  await expect(day(page, TODAY).locator('li.row', { hasText: soon })).toContainText('（あと1日）')
+  await expandOpen(page)
+  await expect(open.getByText(soon)).toHaveCount(0)
   await expect(open.getByText(late)).toBeVisible()
   await expect(open.getByText(due)).toBeVisible()
   await expect(open.getByText(routine)).toHaveCount(0)
@@ -411,7 +457,11 @@ test('対応中：日付を過ぎた未完了タスクが出て、ルーティ�
 test('締め切りは日付より前にできない', async ({ page }) => {
   await login(page)
   const name = `締め切り ${Date.now()}`
-  await quickAdd(page, TOMORROW, [name])
+  const { url, service } = localSupabase()
+  const admin = createClient(url, service, { auth: { persistSession: false } })
+  const { id: userId } = credentials()
+  await admin.from('tasks').insert({ user_id: userId, title: name, date: TOMORROW })
+  await page.reload()
   await day(page, TOMORROW).getByRole('link', { name: `${name} の詳細` }).click()
   await page.getByLabel('締め切り（任意）').fill(TODAY)
   await page.getByRole('button', { name: '保存' }).click()
