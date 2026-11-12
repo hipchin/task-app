@@ -228,17 +228,21 @@ function TodaySection({
       <h2 id="today-heading" className="today-heading">
         今日 <span className="today-date">{formatDayLabel(date)}</span>
       </h2>
-      <ul className="rows">
-        {tasks.map((t) => (
-          <TaskItem key={t.id} task={t} online={online} onError={onError} />
-        ))}
-        {urgent.map((t) => (
-          <TaskItem key={t.id} task={t} note={openTaskNote(t, date)} online={online} onError={onError} />
-        ))}
-      </ul>
-      <RoutineGroup date={date} items={routines} showAll={showAll} online={online} onError={onError} remember />
-      <div className="quick-add">
-        <QuickAdd date={date} label="今日" disabled={!online} onError={onError} />
+      <div className="card">
+        {tasks.length + urgent.length > 0 ? (
+          <ul className="rows">
+            {tasks.map((t) => (
+              <TaskItem key={t.id} task={t} online={online} onError={onError} />
+            ))}
+            {urgent.map((t) => (
+              <TaskItem key={t.id} task={t} note={openTaskNote(t, date)} online={online} onError={onError} />
+            ))}
+          </ul>
+        ) : null}
+        <RoutineGroup date={date} items={routines} showAll={showAll} online={online} onError={onError} remember />
+        <div className="quick-add">
+          <QuickAdd date={date} label="今日" disabled={!online} onError={onError} />
+        </div>
       </div>
     </section>
   )
@@ -264,14 +268,16 @@ function DayGroupSection({
       <h3 id={headingId} className={`day-heading ${dayClass}`}>
         {formatDayLabel(group.date)}
       </h3>
-      {group.tasks.length > 0 ? (
-        <ul className="rows">
-          {group.tasks.map((t) => (
-            <TaskItem key={t.id} task={t} online={online} onError={onError} />
-          ))}
-        </ul>
-      ) : null}
-      <RoutineGroup date={group.date} items={group.routines} showAll={showAll} online={online} onError={onError} />
+      <div className="card">
+        {group.tasks.length > 0 ? (
+          <ul className="rows">
+            {group.tasks.map((t) => (
+              <TaskItem key={t.id} task={t} online={online} onError={onError} />
+            ))}
+          </ul>
+        ) : null}
+        <RoutineGroup date={group.date} items={group.routines} showAll={showAll} online={online} onError={onError} />
+      </div>
     </section>
   )
 }
@@ -398,7 +404,7 @@ function OpenSection({
   useEffect(() => writeLocal(OPEN_EXPANDED_KEY, String(expanded)), [expanded])
   if (isError) {
     return (
-      <section className="open-section" aria-labelledby="open-heading">
+      <section className="open-section card" aria-labelledby="open-heading">
         <h2 id="open-heading" className="open-heading open-heading-plain">
           対応中
         </h2>
@@ -414,7 +420,7 @@ function OpenSection({
   if (list.length === 0) return null
   const oldest = oldestDate(list)
   return (
-    <section className="open-section" aria-labelledby="open-heading">
+    <section className="open-section card" aria-labelledby="open-heading">
       <h2 id="open-heading" className="open-heading">
         <button
           type="button"

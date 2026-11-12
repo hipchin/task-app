@@ -343,19 +343,26 @@ button:disabled {
   line-height: var(--leading-ui);
 }
 
-/* 日ごと：見出しは帯、行は端から端までのセル（iPhone の一覧表示に合わせる） */
+/* 日ごと：見出しはカードの外、行はカードの中（iPhone の「設定」のような角丸のまとまり） */
 .day {
   scroll-margin-top: var(--space-16);
+}
+
+/* ひとまとまり（今日・対応中・各日）を角丸のカードで囲み、まとまりの境目をはっきりさせる */
+.card {
+  margin: 0 var(--space-4);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
 }
 
 .day-heading {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: var(--space-4) 0 0;
-  padding: var(--space-1) var(--app-gutter);
-  border-bottom: 1px solid var(--color-separator);
-  background: var(--color-surface-subtle);
+  margin: var(--space-5) 0 0;
+  padding: 0 calc(var(--space-4) + var(--space-2)) var(--space-1);
   font-size: var(--text-sm);
   font-weight: var(--weight-bold);
   line-height: var(--leading-ui);
@@ -388,13 +395,34 @@ button:disabled {
 }
 
 .row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
   min-height: var(--space-16);
-  padding: 0 var(--space-2) 0 var(--space-3);
-  border-bottom: 1px solid var(--color-separator);
+  padding: 0 var(--space-2) 0 var(--space-1);
   transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+/* 行の区切りは文字の位置から（まとまりの境目＝カードの枠と見分けやすくする） */
+.row::after {
+  --sep-inset: calc(var(--space-1) + var(--control-touch) + var(--space-2));
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: var(--sep-inset);
+  border-bottom: 1px solid var(--color-separator);
+  pointer-events: none;
+}
+
+.rows > .row:last-child::after {
+  display: none;
+}
+
+/* ブロック（タスク → ルーティーン → 追加）の間は端から端までの線 */
+.card > * + * {
+  border-top: 1px solid var(--color-separator);
 }
 
 .check {
@@ -475,7 +503,7 @@ button:disabled {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  padding: var(--space-4) var(--app-gutter) var(--space-2);
+  padding: var(--space-4) calc(var(--space-4) + var(--space-2)) var(--space-2);
   font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
@@ -488,24 +516,20 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-.day-today .rows {
-  border-top: 1px solid var(--color-separator);
-}
-
 /* 「これから」など、セクションのまとまりの見出し */
 .group-heading {
-  padding: var(--space-6) var(--app-gutter) var(--space-1);
+  padding: var(--space-8) calc(var(--space-4) + var(--space-2)) 0;
   font-size: var(--text-lg);
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
 }
 
 .upcoming .day-heading {
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .empty-note {
-  padding: var(--space-3) var(--app-gutter);
+  padding: var(--space-3) calc(var(--space-4) + var(--space-2));
   color: var(--color-text-secondary);
   font-size: var(--text-md);
 }
@@ -517,9 +541,8 @@ button:disabled {
   gap: var(--space-2);
   width: 100%;
   min-height: var(--control-touch);
-  padding: var(--space-2) var(--space-3) var(--space-2) var(--app-gutter);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
   border: 0;
-  border-bottom: 1px solid var(--color-separator);
   background: var(--color-surface);
   color: var(--color-text);
   font-size: var(--text-md);
@@ -555,8 +578,18 @@ button:disabled {
   white-space: nowrap;
 }
 
+/* 開いたルーティーンは一段下げ、地の色を変えて「まとめ行の中身」だと分かるようにする */
+.routine-group .rows {
+  border-top: 1px solid var(--color-separator);
+  background: var(--color-surface-subtle);
+}
+
 .routine-group .rows .row {
-  padding-left: var(--space-6);
+  padding-left: var(--space-4);
+}
+
+.routine-group .row::after {
+  left: calc(var(--sep-inset) + var(--space-3));
 }
 
 /* 完了：取り消し線＋行全体を薄く（SPEC §1.1） */
@@ -570,10 +603,11 @@ button:disabled {
 }
 
 /* 対応中（SPEC §3.7） */
+.open-section {
+  margin-top: var(--space-5);
+}
+
 .open-heading {
-  margin-top: var(--space-4);
-  border-top: 1px solid var(--color-separator);
-  border-bottom: 1px solid var(--color-separator);
   background: var(--color-warning-surface);
   color: var(--color-warning);
   font-size: var(--text-sm);
@@ -585,7 +619,7 @@ button:disabled {
   display: flex;
   align-items: center;
   min-height: var(--control-touch);
-  padding: 0 var(--app-gutter);
+  padding: 0 var(--space-4);
 }
 
 .open-toggle {
@@ -594,7 +628,7 @@ button:disabled {
   gap: var(--space-2);
   width: 100%;
   min-height: var(--control-touch);
-  padding: 0 var(--app-gutter);
+  padding: 0 var(--space-4);
   border: 0;
   background: transparent;
   color: inherit;
@@ -635,9 +669,8 @@ button:disabled {
 }
 
 .quick-add {
-  padding: 0 var(--app-gutter);
+  padding: 0 var(--space-2);
   background: var(--color-surface);
-  border-bottom: 1px solid var(--color-separator);
 }
 
 .quick-add-btn {

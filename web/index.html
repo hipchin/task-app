@@ -11,6 +11,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="やること" />
     <title>やること</title>
+    <!-- JS が読み込まれるまでの白い画面（ダークモードで目立つ）を避ける -->
+    <style>
+      html { background: #F5F5F7; }
+      @media (prefers-color-scheme: dark) { html { background: #101114; } }
+    </style>
   </head>
   <body>
     <div id="root"></div>

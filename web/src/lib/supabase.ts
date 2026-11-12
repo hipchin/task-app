@@ -7,12 +7,15 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
 
 export const isConfigured = url !== '' && anonKey !== ''
 
+/** ログイン情報を保存する localStorage のキー（auth.ts が起動直後に直接読む） */
+export const AUTH_STORAGE_KEY = 'task-app-auth'
+
 export const supabase = createClient(isConfigured ? url : 'http://localhost', isConfigured ? anonKey : 'missing', {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storageKey: 'task-app-auth',
+    storageKey: AUTH_STORAGE_KEY,
   },
   global: { fetch: trackingFetch },
 })
