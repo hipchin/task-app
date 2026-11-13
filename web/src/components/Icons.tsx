@@ -63,6 +63,12 @@ export const IconNextPeriod = (p: P) => (
     <path d="M18 5v14" />
   </Svg>
 )
+export const IconCalendar = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M3 10h18M8 3v4M16 3v4" />
+  </Svg>
+)
 export const IconPlus = (p: P) => (
   <Svg {...p}>
     <path d="M12 5v14M5 12h14" />

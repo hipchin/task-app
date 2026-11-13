@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { addMonths, dayOfWeek, formatDayLabel, formatPeriod, parse, periodFrom, todayJst, type DateStr } from '../../lib/date'
+import {
+  addDays,
+  addMonths,
+  dayOfWeek,
+  formatDayLabel,
+  formatPeriod,
+  isDateStr,
+  parse,
+  periodFrom,
+  todayJst,
+  type DateStr,
+} from '../../lib/date'
 import { expandRoutines } from '../../lib/expandRoutines'
 import { useOnline } from '../../lib/online'
 import { errorMessage } from '../../lib/errors'
@@ -10,7 +21,7 @@ import { buildDayGroups, oldestDate, splitOpenTasks, type DayGroup } from '../..
 import { useRoutineLogs, useRoutines, useToggleRoutine } from '../routines/api'
 import { useToast } from '../../components/toastContext'
 import { Link } from '../../components/Link'
-import { IconCheck, IconChevronLeft, IconChevronRight, IconClip, IconPlus, IconRepeat } from '../../components/Icons'
+import { IconCalendar, IconCheck, IconChevronLeft, IconChevronRight, IconClip, IconPlus, IconRepeat } from '../../components/Icons'
 
 const START_KEY = 'task-app:list-start'
 const SHOW_ALL_KEY = 'task-app:show-all'
@@ -516,6 +527,10 @@ function TaskRow({
   )
 }
 
+/**
+ * 「＋ 追加」。初期値は今日で、入力欄の下の「今日／明日／日付を選ぶ」で追加先の日付を変えられる（SPEC §1.1）。
+ * 今日以外に追加したときは、今日のカードには出ないのでトーストで知らせる。
+ */
 function QuickAdd({
   date,
   label,
@@ -527,10 +542,14 @@ function QuickAdd({
   disabled: boolean
   onError: (e: unknown, action: string) => void
 }) {
+  const toast = useToast()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
+  const [target, setTarget] = useState<DateStr>(date)
   const inputRef = useRef<HTMLInputElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
   const addTask = useAddTask()
+  const tomorrow = addDays(date, 1)
 
   useEffect(() => {
     if (open) inputRef.current?.focus()
@@ -541,14 +560,20 @@ function QuickAdd({
     if (!title) return false
     setText('')
     addTask.mutate(
-      { id: crypto.randomUUID(), title, date, sort_order: Date.now() },
+      { id: crypto.randomUUID(), title, date: target, sort_order: Date.now() },
       {
         onError: (e) => {
           onError(e, `「${title}」を追加`)
         },
       },
     )
+    if (target !== date) toast.show(`「${title}」を${formatDayLabel(target)}に追加しました`, 'info')
     return true
+  }
+
+  const close = () => {
+    setOpen(false)
+    setTarget(date)
   }
 
   // オフラインになったら入力欄を閉じる
@@ -567,14 +592,40 @@ function QuickAdd({
     )
   }
 
+  const chip = (value: DateStr, text: string) => (
+    <button
+      type="button"
+      className="date-chip"
+      aria-pressed={target === value}
+      // 押してもキーボードを閉じない（入力欄からフォーカスを移さない）
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => {
+        setTarget(value)
+        inputRef.current?.focus()
+      }}
+    >
+      {text}
+    </button>
+  )
+  const picked = target !== date && target !== tomorrow
+
   return (
     <form
+      ref={formRef}
       className="quick-add-form"
       onSubmit={(e) => {
         e.preventDefault()
         submit()
         // 続けて入力できるよう開いたままにする
         inputRef.current?.focus()
+      }}
+      onBlur={() => {
+        // フォームの外へフォーカスが移ったら、入力済みなら追加して閉じる（日付の選択へ移っただけなら閉じない）
+        setTimeout(() => {
+          if (formRef.current?.contains(document.activeElement)) return
+          submit()
+          close()
+        }, 0)
       }}
     >
       <label className="visually-hidden" htmlFor={`qa-${date}`}>
@@ -598,15 +649,27 @@ function QuickAdd({
           }
           if (e.key === 'Escape') {
             setText('')
-            setOpen(false)
+            close()
           }
         }}
-        onBlur={() => {
-          // キーボードの「完了」などでフォーカスが外れたら、入力済みなら追加して閉じる
-          submit()
-          setOpen(false)
-        }}
       />
+      <div className="date-chips" role="group" aria-label="追加する日付">
+        {chip(date, '今日')}
+        {chip(tomorrow, '明日')}
+        <label className="date-chip date-chip-pick" data-pressed={picked}>
+          <IconCalendar className="icon icon-sm" />
+          <span>{picked ? formatDayLabel(target) : '日付を選ぶ'}</span>
+          <input
+            type="date"
+            className="date-chip-input"
+            aria-label="日付を選ぶ"
+            value={target}
+            onChange={(e) => {
+              if (isDateStr(e.target.value)) setTarget(e.target.value)
+            }}
+          />
+        </label>
+      </div>
     </form>
   )
 }

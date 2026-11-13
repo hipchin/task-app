@@ -27,7 +27,7 @@ const day = (page: Page, date: string) => page.locator(`section[data-date="${dat
 async function quickAdd(page: Page, titles: string[]) {
   const section = day(page, TODAY)
   await section.getByRole('button', { name: /にタスクを追加/ }).click()
-  const input = section.getByRole('textbox')
+  const input = section.getByLabel('今日 に追加するタスク')
   for (const t of titles) {
     await input.fill(t)
     await input.press('Enter')
@@ -70,6 +70,27 @@ test('＋で続けて追加でき、すぐに表示される', async ({ page }) 
   expect(titles.indexOf(a)).toBeLessThan(titles.indexOf(b))
   await page.reload()
   await expect(day(page, TODAY).getByText(a)).toBeVisible()
+})
+
+test('＋で明日や選んだ日付に追加でき、「これから」に出る', async ({ page }) => {
+  await login(page)
+  const a = `明日やる ${Date.now()}`
+  const b = `来週やる ${Date.now()}`
+  const later = jstDate(5)
+  const section = day(page, TODAY)
+  await section.getByRole('button', { name: /にタスクを追加/ }).click()
+  const input = section.getByLabel('今日 に追加するタスク')
+  await section.getByRole('button', { name: '明日' }).click()
+  await input.fill(a)
+  await input.press('Enter')
+  await expect(page.getByText(`「${a}」を`)).toBeVisible()
+  await section.getByLabel('日付を選ぶ').fill(later)
+  await input.fill(b)
+  await input.press('Enter')
+  await input.press('Escape')
+  await expect(day(page, TOMORROW).getByText(a)).toBeVisible()
+  await expect(day(page, later).getByText(b)).toBeVisible()
+  await expect(section.getByText(a)).toHaveCount(0)
 })
 
 test('完了チェックで取り消し線が付き、もう一度押すと戻る', async ({ page }) => {
