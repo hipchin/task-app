@@ -35,6 +35,18 @@ async function quickAdd(page: Page, titles: string[]) {
   await input.press('Escape')
 }
 
+/** ヘッダーの前の日／次の日で、上のカードの日を d にする（今日から数えて移動する） */
+async function goToDay(page: Page, d: string) {
+  // 表示中の日はタブを閉じるまで残るので、消してから今日で開き直す
+  await page.evaluate(() => sessionStorage.removeItem('task-app:list-selected'))
+  await page.goto('./')
+  await expect(day(page, TODAY)).toBeVisible()
+  const diff = Math.round((Date.parse(`${d}T00:00:00Z`) - Date.parse(`${TODAY}T00:00:00Z`)) / 86_400_000)
+  const btn = page.getByRole('button', { name: diff < 0 ? '前の日' : '次の日' })
+  for (let i = 0; i < Math.abs(diff); i++) await btn.click()
+  await expect(day(page, d)).toBeVisible()
+}
+
 /** その日のルーティーンのまとめ行を開く（閉じていれば） */
 async function expandRoutines(page: Page, date: string) {
   const summary = day(page, date).getByRole('button', { name: /ルーティーン \d+\/\d+ 済/ })
@@ -72,25 +84,32 @@ test('＋で続けて追加でき、すぐに表示される', async ({ page }) 
   await expect(day(page, TODAY).getByText(a)).toBeVisible()
 })
 
-test('＋で明日や選んだ日付に追加でき、「これから」に出る', async ({ page }) => {
+test('次の日へ移動して＋で追加すると、その日に入る。「今日へ戻る」で戻れる', async ({ page }) => {
   await login(page)
   const a = `明日やる ${Date.now()}`
-  const b = `来週やる ${Date.now()}`
-  const later = jstDate(5)
-  const section = day(page, TODAY)
+  // 今日を表示しているときは「今日へ戻る」を出さない
+  await expect(page.getByRole('button', { name: '今日へ戻る' })).toHaveCount(0)
+  await page.getByRole('button', { name: '次の日' }).click()
+  const section = day(page, TOMORROW)
+  await expect(section.getByRole('heading', { name: /^明日/ })).toBeVisible()
   await section.getByRole('button', { name: /にタスクを追加/ }).click()
-  const input = section.getByLabel('今日 に追加するタスク')
-  await section.getByRole('button', { name: '明日' }).click()
+  const input = section.getByLabel('明日 に追加するタスク')
   await input.fill(a)
   await input.press('Enter')
-  await expect(page.getByText(`「${a}」を`)).toBeVisible()
-  await section.getByLabel('日付を選ぶ').fill(later)
+  await expect(section.locator('li.row', { hasText: a })).toBeVisible()
+  // 入力したまま外をタップすると、入力済みなら追加して閉じる
+  const b = `明日もやる ${Date.now()}`
   await input.fill(b)
-  await input.press('Enter')
-  await input.press('Escape')
-  await expect(day(page, TOMORROW).getByText(a)).toBeVisible()
-  await expect(day(page, later).getByText(b)).toBeVisible()
-  await expect(section.getByText(a)).toHaveCount(0)
+  await page.getByRole('heading', { name: 'やること', level: 1 }).click()
+  await expect(input).toHaveCount(0)
+  await expect(section.locator('li.row', { hasText: b })).toBeVisible()
+  // さらに次の日へ進むと見出しは日付だけになる
+  await page.getByRole('button', { name: '次の日' }).click()
+  await expect(day(page, jstDate(2))).toBeVisible()
+  await page.getByRole('button', { name: '今日へ戻る' }).click()
+  await expect(day(page, TODAY).getByRole('heading', { name: /^今日/ })).toBeVisible()
+  // 今日に戻ると、明日のタスクは「これから」に出る
+  await expect(page.locator('section.upcoming').getByText(a)).toBeVisible()
 })
 
 test('完了チェックで取り消し線が付き、もう一度押すと戻る', async ({ page }) => {
@@ -113,25 +132,6 @@ test('完了チェックで取り消し線が付き、もう一度押すと戻�
   await expect(day(page, TODAY).getByText(t)).toBeHidden()
   await page.getByRole('button', { name: '未完了' }).click()
   await expect(day(page, TODAY).getByText(t)).toBeVisible()
-})
-
-test('期間の移動と「今日へ戻る」', async ({ page }) => {
-  await login(page)
-  const label = page.locator('.period-label')
-  // 今日を含む期間では期間の表示も「今日へ戻る」も出さない
-  await expect(label).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '今日へ戻る' })).toHaveCount(0)
-  await page.getByRole('button', { name: '次の期間' }).click()
-  await expect(label).toBeVisible()
-  const next = await label.textContent()
-  await expect(day(page, TODAY)).toHaveCount(0)
-  await page.getByRole('button', { name: '前の期間' }).click()
-  await page.getByRole('button', { name: '前の期間' }).click()
-  await expect(label).not.toHaveText(next ?? '')
-  await expect(day(page, TODAY)).toHaveCount(0)
-  await page.getByRole('button', { name: '今日へ戻る' }).click()
-  await expect(label).toHaveCount(0)
-  await expect(day(page, TODAY)).toBeVisible()
 })
 
 test('詳細画面でメモを編集し、日付を変更できる', async ({ page }) => {
@@ -238,32 +238,34 @@ test('ルーティーン：毎週（曜日指定）が該当日だけに表示�
   else await expect(day(page, TODAY).getByText(name)).toHaveCount(0)
   await expect(page.locator('section.upcoming').getByText(name)).toHaveCount(0)
 
-  // 2週間前から始まっていたことにして、前の期間（過去の日）で該当日だけに出ることを確かめる
+  // 2週間前から始まっていたことにして、過去の日へ1日ずつ戻り、該当日だけに出ることを確かめる
   const { url, service } = localSupabase()
   const admin = createClient(url, service, { auth: { persistSession: false } })
   await admin.from('routines').update({ start_date: jstDate(-14) }).eq('title', name)
   await page.reload()
-  await page.getByRole('button', { name: '前の期間' }).click()
   const expected = Array.from({ length: 14 }, (_, i) => jstDate(i - 14)).filter(isMwf)
-  for (const d of expected) await expect(day(page, d).locator('.routine-summary', { hasText: name })).toBeVisible()
-  const shown = await page
-    .locator('section[data-date]')
-    .filter({ has: page.locator('.routine-summary', { hasText: name }) })
-    .evaluateAll((els) => els.map((e) => e.getAttribute('data-date') ?? ''))
-  expect(shown).toEqual(expected)
+  for (let i = -1; i >= -14; i--) {
+    await page.getByRole('button', { name: '前の日' }).click()
+    const d = jstDate(i)
+    const summary = day(page, d).locator('.routine-summary', { hasText: name })
+    if (isMwf(d)) await expect(summary).toBeVisible()
+    else await expect(summary).toHaveCount(0)
+  }
 
   // 最初の該当日だけ完了にする
   const [first, second] = expected
   if (!first || !second) throw new Error('該当日が足りない')
+  await goToDay(page, first)
   await expandRoutines(page, first)
   await day(page, first).locator('li.row', { hasText: name }).getByRole('checkbox').click()
   await expect(day(page, first).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
   await page.reload()
   await expandRoutines(page, first)
-  await expandRoutines(page, second)
   await expect(day(page, first).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
-  await expect(day(page, second).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
   await expect(day(page, first).locator('li.row', { hasText: name }).getByRole('img', { name: 'ルーティーン' })).toBeVisible()
+  await goToDay(page, second)
+  await expandRoutines(page, second)
+  await expect(day(page, second).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
   await page.getByRole('button', { name: '今日へ戻る' }).click()
 })
 
@@ -402,12 +404,12 @@ test('昨日の未完了ルーティーンは今日に繰り越されず、ル�
   expect(rows?.[1]?.rule_type).toBe('weekly')
 
   // 一昨日・昨日の表示と完了状態は変わらない
-  await page.goto('./')
-  await page.getByRole('button', { name: '前の期間' }).click()
-  await expandRoutines(page, TWO_DAYS_AGO)
+  await goToDay(page, YESTERDAY)
   await expandRoutines(page, YESTERDAY)
-  await expect(day(page, TWO_DAYS_AGO).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
   await expect(day(page, YESTERDAY).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
+  await goToDay(page, TWO_DAYS_AGO)
+  await expandRoutines(page, TWO_DAYS_AGO)
+  await expect(day(page, TWO_DAYS_AGO).locator('li.row', { hasText: name }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
   await page.getByRole('button', { name: '今日へ戻る' }).click()
   await expect(day(page, TODAY).getByText(name)).toHaveCount(0)
 })

@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   addDays,
-  addMonths,
   dayOfWeek,
   formatDayLabel,
-  formatPeriod,
   isDateStr,
   parse,
   periodFrom,
@@ -21,9 +19,10 @@ import { buildDayGroups, oldestDate, splitOpenTasks, type DayGroup } from '../..
 import { useRoutineLogs, useRoutines, useToggleRoutine } from '../routines/api'
 import { useToast } from '../../components/toastContext'
 import { Link } from '../../components/Link'
-import { IconCalendar, IconCheck, IconChevronLeft, IconChevronRight, IconClip, IconPlus, IconRepeat } from '../../components/Icons'
+import { IconCheck, IconChevronLeft, IconChevronRight, IconClip, IconPlus, IconRepeat } from '../../components/Icons'
 
-const START_KEY = 'task-app:list-start'
+// 上のカードに出す日（アプリを開き直したら今日に戻す）
+const SELECTED_KEY = 'task-app:list-selected'
 const SHOW_ALL_KEY = 'task-app:show-all'
 // 初期値は閉じる（2026-11-12 から。旧キー open-collapsed は使わない）
 const OPEN_EXPANDED_KEY = 'task-app:open-expanded'
@@ -70,16 +69,23 @@ type OnError = (e: unknown, action: string) => void
 
 export function ListScreen() {
   const today = todayJst()
-  const [start, setStart] = useState<DateStr>(() => readSession(START_KEY) ?? today)
+  // 上のカードに出す日。ヘッダーの ‹ › で1日ずつ動かす（SPEC §1.1。2026-11-14 から）
+  const [selected, setSelected] = useState<DateStr>(() => {
+    const saved = readSession(SELECTED_KEY)
+    return saved && isDateStr(saved) ? saved : today
+  })
   // TODO-1: 「すべて」ボタンの意味は未決。仮に「すべて表示 ⇔ 未完了のみ」の切り替えとする
   const [showAll, setShowAll] = useState<boolean>(() => readLocal(SHOW_ALL_KEY) !== 'false')
-  const { from, to } = periodFrom(start)
-  const hasToday = from <= today && today <= to
+  // 選んだ日と、今日から1か月先までの「これから」をまとめて読む
+  const from = selected < today ? selected : today
+  const upcomingEnd = periodFrom(today).to
+  const to = selected > upcomingEnd ? selected : upcomingEnd
+  const isToday = selected === today
   const online = useOnline()
   const toast = useToast()
   const onError: OnError = (e, action) => toast.show(errorMessage(e, action))
 
-  useEffect(() => writeSession(START_KEY, start), [start])
+  useEffect(() => writeSession(SELECTED_KEY, selected), [selected])
   useEffect(() => writeLocal(SHOW_ALL_KEY, String(showAll)), [showAll])
 
   const tasksQ = useTasks(from, to)
@@ -99,41 +105,30 @@ export function ListScreen() {
     return buildDayGroups(from, to, today, tasks, routines)
   }, [tasksQ.data, routinesQ.data, logsQ.data, from, to, today, showAll])
 
-  const { urgent, rest } = splitOpenTasks(openQ.data ?? [], today, hasToday)
+  // 締め切りが近い対応中のタスクは、今日を見ているときだけ上のカードに出す
+  const { urgent, rest } = splitOpenTasks(openQ.data ?? [], today, isToday)
 
   const loading = (tasksQ.isPending || routinesQ.isPending || logsQ.isPending) && !tasksQ.data
   const error = tasksQ.error ?? routinesQ.error ?? logsQ.error
 
-  const moveTo = (s: DateStr) => {
-    setStart(s)
+  const moveTo = (d: DateStr) => {
+    setSelected(d)
     window.scrollTo({ top: 0 })
   }
 
-  const todayGroup = groups.find((g) => g.date === today)
-  const otherGroups = groups.filter((g) => g.date !== today)
-
-  const open = (
-    <OpenSection
-      list={rest}
-      isError={openQ.isError && !openQ.data}
-      error={openQ.error}
-      onRetry={() => void openQ.refetch()}
-      today={today}
-      online={online}
-      onError={onError}
-    />
-  )
+  const selectedGroup = groups.find((g) => g.date === selected)
+  const upcoming = groups.filter((g) => g.date > today && g.date !== selected)
 
   return (
     <div className="screen">
       <header className="list-header">
         <div className="list-header-top">
           <h1 className="list-title">やること</h1>
-          <div className="period-nav" role="group" aria-label="期間の移動（1か月）">
-            <button type="button" className="period-btn" onClick={() => moveTo(addMonths(start, -1))} aria-label="前の期間">
+          <div className="period-nav" role="group" aria-label="日の移動">
+            <button type="button" className="period-btn" onClick={() => moveTo(addDays(selected, -1))} aria-label="前の日">
               <IconChevronLeft className="icon icon-sm" />
             </button>
-            <button type="button" className="period-btn" onClick={() => moveTo(addMonths(start, 1))} aria-label="次の期間">
+            <button type="button" className="period-btn" onClick={() => moveTo(addDays(selected, 1))} aria-label="次の日">
               <IconChevronRight className="icon icon-sm" />
             </button>
           </div>
@@ -147,17 +142,6 @@ export function ListScreen() {
           </button>
         </div>
       </header>
-      {hasToday ? null : (
-        <div className="period-bar">
-          <p className="period-label">
-            <span className="visually-hidden">期間: </span>
-            {formatPeriod(from, to)}
-          </p>
-          <button type="button" className="btn btn-secondary btn-compact back-to-today" onClick={() => moveTo(today)}>
-            今日へ戻る
-          </button>
-        </div>
-      )}
 
       {error && !tasksQ.data ? (
         <div className="inline-error" role="alert">
@@ -170,75 +154,95 @@ export function ListScreen() {
 
       {loading ? <DelayedLoading /> : null}
 
-      {hasToday ? (
-        <>
-          {loading ? null : (
-            <TodaySection
-              date={today}
-              tasks={todayGroup?.tasks ?? []}
-              urgent={urgent}
-              routines={todayGroup?.routines ?? []}
-              showAll={showAll}
-              online={online}
-              onError={onError}
-            />
+      {loading ? null : (
+        <SelectedDaySection
+          key={selected}
+          date={selected}
+          today={today}
+          tasks={selectedGroup?.tasks ?? []}
+          urgent={urgent}
+          routines={selectedGroup?.routines ?? []}
+          showAll={showAll}
+          online={online}
+          onError={onError}
+          onBackToToday={() => moveTo(today)}
+        />
+      )}
+      <OpenSection
+        list={rest}
+        isError={openQ.isError && !openQ.data}
+        error={openQ.error}
+        onRetry={() => void openQ.refetch()}
+        today={today}
+        online={online}
+        onError={onError}
+      />
+      {loading ? null : (
+        <section className="upcoming" aria-labelledby="upcoming-heading">
+          <h2 id="upcoming-heading" className="group-heading">
+            これから
+          </h2>
+          {upcoming.length === 0 ? (
+            <p className="empty-note">これからの予定はありません</p>
+          ) : (
+            upcoming.map((g) => (
+              <DayGroupSection key={g.date} group={g} showAll={showAll} online={online} onError={onError} />
+            ))
           )}
-          {open}
-          {loading ? null : (
-            <section className="upcoming" aria-labelledby="upcoming-heading">
-              <h2 id="upcoming-heading" className="group-heading">
-                これから
-              </h2>
-              {otherGroups.length === 0 ? (
-                <p className="empty-note">これからの予定はありません</p>
-              ) : (
-                otherGroups.map((g) => (
-                  <DayGroupSection key={g.date} group={g} showAll={showAll} online={online} onError={onError} />
-                ))
-              )}
-            </section>
-          )}
-        </>
-      ) : (
-        <>
-          {open}
-          {loading ? null : (
-            <div className="day-list" aria-busy={loading}>
-              {otherGroups.length === 0 ? <p className="empty-note">この期間のタスクはありません</p> : null}
-              {otherGroups.map((g) => (
-                <DayGroupSection key={g.date} group={g} showAll={showAll} online={online} onError={onError} />
-              ))}
-            </div>
-          )}
-        </>
+        </section>
       )}
     </div>
   )
 }
 
-/** 「今日」：今日のタスク → 締め切りが近い対応中 → ルーティーンのまとめ → 追加（SPEC §1.1） */
-function TodaySection({
+/** 「今日」「明日」「昨日」、それ以外は日付だけ */
+function relativeDayName(date: DateStr, today: DateStr): string | null {
+  if (date === today) return '今日'
+  if (date === addDays(today, 1)) return '明日'
+  if (date === addDays(today, -1)) return '昨日'
+  return null
+}
+
+/**
+ * 上のカード：選んだ日のタスク →（今日なら）締め切りが近い対応中 → ルーティーンのまとめ → 追加（SPEC §1.1）。
+ * 「＋ 追加」はこの日に入る。
+ */
+function SelectedDaySection({
   date,
+  today,
   tasks,
   urgent,
   routines,
   showAll,
   online,
   onError,
+  onBackToToday,
 }: {
   date: DateStr
+  today: DateStr
   tasks: TaskWithAttachments[]
   urgent: TaskWithAttachments[]
   routines: RoutineItem[]
   showAll: boolean
   online: boolean
   onError: OnError
+  onBackToToday: () => void
 }) {
+  const name = relativeDayName(date, today)
+  const label = name ?? formatDayLabel(date)
   return (
     <section className="day day-today" aria-labelledby="today-heading" data-date={date}>
-      <h2 id="today-heading" className="today-heading">
-        今日 <span className="today-date">{formatDayLabel(date)}</span>
-      </h2>
+      <div className="today-head">
+        <h2 id="today-heading" className="today-heading">
+          {name ?? formatDayLabel(date)}
+          {name ? <span className="today-date">{formatDayLabel(date)}</span> : null}
+        </h2>
+        {date === today ? null : (
+          <button type="button" className="btn btn-secondary btn-compact back-to-today" onClick={onBackToToday}>
+            今日へ戻る
+          </button>
+        )}
+      </div>
       <div className="card">
         {tasks.length + urgent.length > 0 ? (
           <ul className="rows">
@@ -250,9 +254,16 @@ function TodaySection({
             ))}
           </ul>
         ) : null}
-        <RoutineGroup date={date} items={routines} showAll={showAll} online={online} onError={onError} remember />
+        <RoutineGroup
+          date={date}
+          items={routines}
+          showAll={showAll}
+          online={online}
+          onError={onError}
+          remember={date === today}
+        />
         <div className="quick-add">
-          <QuickAdd date={date} label="今日" disabled={!online} onError={onError} />
+          <QuickAdd date={date} label={label} disabled={!online} onError={onError} />
         </div>
       </div>
     </section>
@@ -527,10 +538,7 @@ function TaskRow({
   )
 }
 
-/**
- * 「＋ 追加」。初期値は今日で、入力欄の下の「今日／明日／日付を選ぶ」で追加先の日付を変えられる（SPEC §1.1）。
- * 今日以外に追加したときは、今日のカードには出ないのでトーストで知らせる。
- */
+/** 「＋ 追加」。上のカードで表示している日に追加する（SPEC §1.1） */
 function QuickAdd({
   date,
   label,
@@ -542,14 +550,11 @@ function QuickAdd({
   disabled: boolean
   onError: (e: unknown, action: string) => void
 }) {
-  const toast = useToast()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
-  const [target, setTarget] = useState<DateStr>(date)
   const inputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const addTask = useAddTask()
-  const tomorrow = addDays(date, 1)
 
   useEffect(() => {
     if (open) inputRef.current?.focus()
@@ -560,21 +565,34 @@ function QuickAdd({
     if (!title) return false
     setText('')
     addTask.mutate(
-      { id: crypto.randomUUID(), title, date: target, sort_order: Date.now() },
+      { id: crypto.randomUUID(), title, date, sort_order: Date.now() },
       {
         onError: (e) => {
           onError(e, `「${title}」を追加`)
         },
       },
     )
-    if (target !== date) toast.show(`「${title}」を${formatDayLabel(target)}に追加しました`, 'info')
     return true
   }
 
-  const close = () => {
-    setOpen(false)
-    setTarget(date)
-  }
+  const close = () => setOpen(false)
+
+  // フォームの外をタップしたら、入力済みなら追加して閉じる。
+  // フォーカスが外れたこと（blur）では閉じない：iPhone ではキーボードを下げただけでフォーカスが外れるため
+  const submitRef = useRef(submit)
+  useEffect(() => {
+    submitRef.current = submit
+  })
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: PointerEvent) => {
+      if (e.target instanceof Node && formRef.current?.contains(e.target)) return
+      submitRef.current()
+      setOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [open])
 
   // オフラインになったら入力欄を閉じる
   if (!open || disabled) {
@@ -592,23 +610,6 @@ function QuickAdd({
     )
   }
 
-  const chip = (value: DateStr, text: string) => (
-    <button
-      type="button"
-      className="date-chip"
-      aria-pressed={target === value}
-      // 押してもキーボードを閉じない（入力欄からフォーカスを移さない）
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={() => {
-        setTarget(value)
-        inputRef.current?.focus()
-      }}
-    >
-      {text}
-    </button>
-  )
-  const picked = target !== date && target !== tomorrow
-
   return (
     <form
       ref={formRef}
@@ -618,14 +619,6 @@ function QuickAdd({
         submit()
         // 続けて入力できるよう開いたままにする
         inputRef.current?.focus()
-      }}
-      onBlur={() => {
-        // フォームの外へフォーカスが移ったら、入力済みなら追加して閉じる（日付の選択へ移っただけなら閉じない）
-        setTimeout(() => {
-          if (formRef.current?.contains(document.activeElement)) return
-          submit()
-          close()
-        }, 0)
       }}
     >
       <label className="visually-hidden" htmlFor={`qa-${date}`}>
@@ -653,23 +646,6 @@ function QuickAdd({
           }
         }}
       />
-      <div className="date-chips" role="group" aria-label="追加する日付">
-        {chip(date, '今日')}
-        {chip(tomorrow, '明日')}
-        <label className="date-chip date-chip-pick" data-pressed={picked}>
-          <IconCalendar className="icon icon-sm" />
-          <span>{picked ? formatDayLabel(target) : '日付を選ぶ'}</span>
-          <input
-            type="date"
-            className="date-chip-input"
-            aria-label="日付を選ぶ"
-            value={target}
-            onChange={(e) => {
-              if (isDateStr(e.target.value)) setTarget(e.target.value)
-            }}
-          />
-        </label>
-      </div>
     </form>
   )
 }
