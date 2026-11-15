@@ -32,4 +32,4 @@ npm run dev
 
 service_role キーやその他の秘密情報はリポジトリに置かない（Supabase Secrets を使う）。
 
-DB の変更は `supabase/migrations/` に追加して `npx supabase db push`。
+DB の変更は `supabase/migrations/` に追加して `npx supabase db push --remote`（`--remote` を付けないと、ローカルが起動中はローカルに入る）。反映後は `npx supabase migration list --remote` で確認する。
