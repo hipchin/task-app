@@ -382,7 +382,6 @@ button:disabled {
   gap: var(--space-2);
   min-height: var(--space-16);
   padding: 0 var(--space-2) 0 var(--space-1);
-  transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
 /* 行の区切りは文字の位置から（まとまりの境目＝カードの枠と見分けやすくする） */
@@ -569,8 +568,14 @@ button:disabled {
   left: calc(var(--sep-inset) + var(--space-3));
 }
 
-/* 完了：取り消し線＋行全体を薄く（SPEC §1.1） */
-.row-done {
+/* 完了：取り消し線＋行を薄く（SPEC §1.1）。「・」だけは薄くせず、完了の色をはっきり見せる */
+.row > :not(.row-main),
+.row-main > :not(.check) {
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.row-done > :not(.row-main),
+.row-done .row-main > :not(.check) {
   opacity: 0.55;
 }
 
