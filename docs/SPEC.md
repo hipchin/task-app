@@ -104,6 +104,7 @@ create table tasks (
   sort_order double precision not null default 0,
   remind_at timestamptz,              -- 任意
   notified_at timestamptz,            -- 通知の送信済み記録
+  source_key text,                    -- AI が付ける出どころの識別子（例：gmail:<メッセージID>）。(user_id, source_key) で一意。本人が作るタスクは null
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -320,10 +321,14 @@ LLMの費用はChatGPTの契約内で済み、アプリ側にLLMのAPIキーは�
   - 同意画面：`https://hipchin.github.io/task-app/oauth/consent`（アプリ内。ログインしていなければ先にログイン）
   - ツールはユーザー本人のトークンで動き、RLS がそのまま効く
 - ツール（削除系は用意しない）
-  - 読む：`list_tasks(from, to)`（期間のタスクとルーティーン）、`list_open_tasks()`（対応中）、`list_routines()`
-  - 書く：`add_task(title, date, due_date?, memo?)`、`set_task_done(id, done)`、`update_task(id, title?, date?, due_date?)`、`append_task_memo(id, text)`、`set_routine_done(routine_id, date, done)`
+  - 読む：`list_tasks(from, to)`（期間のタスクとルーティーン）、`list_open_tasks()`（対応中）、`list_routines()`、`get_task_images(id, offset?)`（タスクの添付画像。1回3枚まで。2026-11-15 追加）
+    - タスクの一覧には添付画像の枚数（`images`）を含める
+  - 書く：`add_task(title, date, due_date?, memo?, source_key?)`、`set_task_done(id, done)`、`update_task(id, title?, date?, due_date?)`、`append_task_memo(id, text)`、`set_routine_done(routine_id, date, done)`
 - 制限（DBで強制する。OAuthクライアントのトークンは JWT に `client_id` を持つ）
-  - タスクの削除、ルーティーン本体の作成・変更・削除、画像・通知購読・トークンの操作はできない
+  - タスクの削除、ルーティーン本体の作成・変更・削除、画像の追加・削除、通知購読・トークンの操作はできない
+  - 画像は見ることだけできる（2026-11-15 変更）。必要な会話だけスクリーンショットにしてタスクへ添付し、AI に読ませるため。ルーティーンの記録に付けた画像はツールからは返さない
+  - 重複の防止（2026-11-15 追加）：メールなど外部の情報から作るタスクには `source_key`（例：`gmail:<メッセージID>`）を付ける。同じ `source_key` のタスクは DB の一意制約で作れず、`add_task` は追加せずに既存のタスクを返す。`source_key` は作るときにだけ付けられ、あとから変えられない
+    - 本人がそのタスクを削除すると `source_key` も消えるので、同じ出どころからもう一度作られうる（不要なら削除ではなく完了にする）
   - 書き込みはすべて `agent_actions`（操作記録）に残す
 - 設定画面
   - 「連携中のアプリ」：許可したアプリの一覧と「連携を解除」
@@ -337,6 +342,9 @@ LLMの費用はChatGPTの契約内で済み、アプリ側にLLMのAPIキーは�
   - [x] 書き込みが操作記録に残り、設定画面で見られる（E2E）
   - [x] 「連携を解除」すると、以後のツール呼び出しが拒否される（E2E）
   - [ ] ChatGPT の定期実行から呼び出せる（しばらく運用してから試す）
+  - [x] 同じ `source_key` で2回追加しても1件しかできず、2回目は既存のタスクが返る（E2E）
+  - [x] ChatGPT のトークンで添付画像を読めるが、追加・削除は DB で拒否される。連携を解除すると読めなくなる（E2E）
+  - [ ] ChatGPT が `get_task_images` の画像を実際に読み取れる（実機で確認する）
 
 ### Phase 4：（旧ショートカット連携）
 - 必要になったら、Phase 3 の MCP とは別に検討する

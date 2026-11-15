@@ -127,14 +127,14 @@ isOneToOne: false
                   ]
                 },"tasks": {
                   Row: {
-                    "created_at": string,"date": string,"done": boolean,"done_at": string | null,"due_date": string | null,"id": string,"memo": string,"notified_at": string | null,"remind_at": string | null,"sort_order": number,"title": string,"updated_at": string,"user_id": string
+                    "created_at": string,"date": string,"done": boolean,"done_at": string | null,"due_date": string | null,"id": string,"memo": string,"notified_at": string | null,"remind_at": string | null,"sort_order": number,"source_key": string | null,"title": string,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"date": string,"done"?: boolean,"done_at"?: string | null,"due_date"?: string | null,"id"?: string,"memo"?: string,"notified_at"?: string | null,"remind_at"?: string | null,"sort_order"?: number,"title": string,"updated_at"?: string,"user_id"?: string
+                    "created_at"?: string,"date": string,"done"?: boolean,"done_at"?: string | null,"due_date"?: string | null,"id"?: string,"memo"?: string,"notified_at"?: string | null,"remind_at"?: string | null,"sort_order"?: number,"source_key"?: string | null,"title": string,"updated_at"?: string,"user_id"?: string
                   }
                   Update: {
-                    "created_at"?: string,"date"?: string,"done"?: boolean,"done_at"?: string | null,"due_date"?: string | null,"id"?: string,"memo"?: string,"notified_at"?: string | null,"remind_at"?: string | null,"sort_order"?: number,"title"?: string,"updated_at"?: string,"user_id"?: string
+                    "created_at"?: string,"date"?: string,"done"?: boolean,"done_at"?: string | null,"due_date"?: string | null,"id"?: string,"memo"?: string,"notified_at"?: string | null,"remind_at"?: string | null,"sort_order"?: number,"source_key"?: string | null,"title"?: string,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     
@@ -157,6 +157,7 @@ isOneToOne: false
 "notified_at": string | null,
 "remind_at": string | null,
 "sort_order": number,
+"source_key": string | null,
 "title": string,
 "updated_at": string,
 "user_id": string
@@ -168,9 +169,6 @@ isOneToOne: false
         isSetofReturn: true
       } },
 "is_oauth_client":
-{ Args: Record<PropertyKey, never>; Returns: boolean
-                           },
-"oauth_session_active":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
 "record_agent_action":
