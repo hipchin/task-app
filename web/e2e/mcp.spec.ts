@@ -33,7 +33,10 @@ async function rpc(fnUrl: string, token: string, method: string, params: unknown
   const text = await res.text()
   if (res.status !== 200) return { status: res.status, body: text }
   const json = text.startsWith('{') ? text : (text.split('\n').find((l) => l.startsWith('data:')) ?? '').slice(5)
-  return { status: 200, body: JSON.parse(json) as { result?: { content?: { text: string }[]; isError?: boolean }; error?: unknown } }
+  return {
+    status: 200,
+    body: JSON.parse(json) as { result?: { content?: { type?: string; text?: string; data?: string; mimeType?: string }[]; isError?: boolean }; error?: unknown },
+  }
 }
 
 async function tool(fnUrl: string, token: string, name: string, args: Record<string, unknown> = {}) {
@@ -41,7 +44,7 @@ async function tool(fnUrl: string, token: string, name: string, args: Record<str
   if (r.status !== 200 || typeof r.body === 'string') throw new Error(`HTTP ${r.status}: ${String(r.body)}`)
   const result = r.body.result
   const text = result?.content?.[0]?.text ?? ''
-  return { isError: result?.isError === true, text, json: () => JSON.parse(text) as Record<string, unknown> }
+  return { isError: result?.isError === true, text, content: result?.content ?? [], json: () => JSON.parse(text) as Record<string, unknown> }
 }
 
 test('ChatGPT と同じ手順で接続し、読み書きでき、禁止操作は拒否され、解除すると使えなくなる', async ({ page }) => {
@@ -98,7 +101,7 @@ test('ChatGPT と同じ手順で接続し、読み書きでき、禁止操作は
   await login(page)
   await expect(page.getByRole('heading', { name: 'アプリの連携' })).toBeVisible()
   await expect(page.getByText(clientName)).toBeVisible()
-  await expect(page.getByText('タスクの削除、ルーティーン本体の変更、画像の操作はできません。', { exact: false })).toBeVisible()
+  await expect(page.getByText('タスクの削除、ルーティーン本体の変更、画像の追加・削除はできません。', { exact: false })).toBeVisible()
   // 戻り先が ChatGPT ではない（テストでは localhost）ので警告が出て、安全な選択が先に来る
   await expect(page.getByRole('alert')).toContainText('この接続元は ChatGPT ではありません')
   await expect(page.getByRole('button', { name: '許可する', exact: true })).toHaveCount(0)
@@ -135,7 +138,7 @@ test('ChatGPT と同じ手順で接続し、読み書きでき、禁止操作は
   const list = await rpc(fnUrl, token, 'tools/list', {})
   const names = ((list.body as { result: { tools: { name: string }[] } }).result.tools ?? []).map((t) => t.name).sort()
   expect(names).toEqual(
-    ['add_task', 'append_task_memo', 'list_open_tasks', 'list_routines', 'list_tasks', 'set_routine_done', 'set_task_done', 'update_task'].sort(),
+    ['add_task', 'append_task_memo', 'get_task_images', 'list_open_tasks', 'list_routines', 'list_tasks', 'set_routine_done', 'set_task_done', 'update_task'].sort(),
   )
 
   // 6. 書き込み：追加・メモ追記・完了。対応中・期間の読み取り
@@ -157,6 +160,42 @@ test('ChatGPT と同じ手順で接続し、読み書きでき、禁止操作は
   expect(row?.done).toBe(true)
   expect(row?.memo).toContain('AI] 見積もりを比較した')
 
+  // 6.1 重複の防止：同じ source_key では1件しかできず、2回目は既存のタスクが返る
+  const sourceKey = `gmail:e2e-${Date.now()}`
+  const first = await tool(fnUrl, token, 'add_task', { title: `予約本の受取 ${sourceKey}`, date: jstDate(1), source_key: sourceKey })
+  expect(first.isError, first.text).toBe(false)
+  const firstId = (first.json().added as { id: string }).id
+  const second = await tool(fnUrl, token, 'add_task', { title: '言い回しの違う同じ用件', date: jstDate(2), source_key: sourceKey })
+  expect(second.isError, second.text).toBe(false)
+  expect(second.json().already_exists).toBe(true)
+  expect((second.json().task as { id: string }).id).toBe(firstId)
+  expect((await admin.from('tasks').select('id').eq('user_id', userId).eq('source_key', sourceKey)).data).toHaveLength(1)
+
+  // 6.2 添付画像：本人が付けた画像を AI が読める
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0xff, 0xd9])
+  const paths: string[] = []
+  for (let i = 0; i < 4; i++) {
+    const path = `${userId}/e2e-${Date.now()}-${i}.jpg`
+    paths.push(path)
+    expect((await admin.storage.from('attachments').upload(path, jpeg, { contentType: 'image/jpeg' })).error).toBeNull()
+    const created = new Date(Date.now() + i * 1000).toISOString()
+    expect((await admin.from('attachments').insert({ user_id: userId, task_id: taskId, storage_path: path, created_at: created })).error).toBeNull()
+  }
+  const withImages = await tool(fnUrl, token, 'list_tasks', { from: jstDate(0), to: jstDate(2) })
+  const listed = (withImages.json().days as { tasks: { id: string; images: number }[] }[]).flatMap((d) => d.tasks).find((t) => t.id === taskId)
+  expect(listed?.images).toBe(4)
+  const imgs = await tool(fnUrl, token, 'get_task_images', { id: taskId })
+  expect(imgs.isError, imgs.text).toBe(false)
+  expect(imgs.json()).toMatchObject({ total: 4, returned: 3, next_offset: 3 })
+  const blocks = imgs.content.filter((c) => c.type === 'image')
+  expect(blocks).toHaveLength(3)
+  expect(blocks[0]?.mimeType).toBe('image/jpeg')
+  expect(Buffer.from(blocks[0]?.data ?? '', 'base64').equals(jpeg)).toBe(true)
+  const rest = await tool(fnUrl, token, 'get_task_images', { id: taskId, offset: 3 })
+  expect(rest.json()).toMatchObject({ total: 4, returned: 1 })
+  expect(rest.json().next_offset).toBeUndefined()
+  expect(rest.content.filter((c) => c.type === 'image')).toHaveLength(1)
+
   // 7. 禁止操作は DB で拒否（OAuth クライアントのトークンで直接 REST を叩く）
   const asGpt = createClient(url, anon, {
     auth: { persistSession: false },
@@ -167,8 +206,21 @@ test('ChatGPT と同じ手順で接続し、読み書きでき、禁止操作は
   expect((await admin.from('tasks').select('id').eq('id', taskId)).data).toHaveLength(1)
   const ins = await asGpt.from('routines').insert({ title: 'GPTのルーティーン', rule_type: 'daily', start_date: jstDate(0) })
   expect(ins.error).not.toBeNull()
-  const att = await asGpt.from('attachments').select('id')
-  expect(att.data ?? []).toEqual([])
+  // 画像は見るだけ。追加・削除は拒否（行も、ファイルも）
+  const att = await asGpt.from('attachments').select('id').eq('task_id', taskId)
+  expect(att.data ?? []).toHaveLength(4)
+  const attIns = await asGpt.from('attachments').insert({ task_id: taskId, storage_path: `${userId}/gpt.jpg` })
+  expect(attIns.error).not.toBeNull()
+  const attDel = await asGpt.from('attachments').delete().eq('task_id', taskId).select()
+  expect(attDel.data ?? []).toEqual([])
+  expect((await admin.from('attachments').select('id').eq('task_id', taskId)).data).toHaveLength(4)
+  const up = await asGpt.storage.from('attachments').upload(`${userId}/gpt.jpg`, jpeg, { contentType: 'image/jpeg' })
+  expect(up.error).not.toBeNull()
+  await asGpt.storage.from('attachments').remove([paths[0] ?? ''])
+  expect((await admin.storage.from('attachments').download(paths[0] ?? '')).error).toBeNull()
+  // source_key はあとから変えられない
+  const rekey = await asGpt.from('tasks').update({ source_key: 'gmail:other' }).eq('id', firstId)
+  expect(rekey.error).not.toBeNull()
   // 操作記録は直接書けない（DB の変更から自動で作られる）
   const forged = await asGpt.from('agent_actions').insert({ action: 'x', summary: '偽の記録' })
   expect(forged.error).not.toBeNull()
@@ -202,6 +254,8 @@ test('ChatGPT と同じ手順で接続し、読み書きでき、禁止操作は
   // REST から直接でも、同じトークンでは読めない・書けない
   const readAfter = await asGpt.from('tasks').select('id')
   expect(readAfter.data ?? []).toEqual([])
+  expect((await asGpt.from('attachments').select('id')).data ?? []).toEqual([])
+  expect((await asGpt.storage.from('attachments').download(paths[0] ?? '')).error).not.toBeNull()
   const addAfter = await asGpt.from('tasks').insert({ title: '解除後', date: jstDate(0) })
   expect(addAfter.error).not.toBeNull()
 })
