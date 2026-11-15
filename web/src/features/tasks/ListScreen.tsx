@@ -19,7 +19,7 @@ import { buildDayGroups, oldestDate, splitOpenTasks, type DayGroup } from '../..
 import { useRoutineLogs, useRoutines, useToggleRoutine } from '../routines/api'
 import { useToast } from '../../components/toastContext'
 import { Link } from '../../components/Link'
-import { IconCheck, IconChevronLeft, IconChevronRight, IconClip, IconPlus, IconRepeat } from '../../components/Icons'
+import { IconChevronLeft, IconChevronRight, IconClip, IconPlus, IconRepeat } from '../../components/Icons'
 
 // 上のカードに出す日（アプリを開き直したら今日に戻す）
 const SELECTED_KEY = 'task-app:list-selected'
@@ -506,7 +506,7 @@ function TaskRow({
   detail: Parameters<typeof Link>[0]['to']
   onToggle: () => void
 }) {
-  // チェックの丸だけでなくタイトルを押しても完了を切り替える（SPEC §1.1）。詳細は右のボタンから開く
+  // 行（「・」とタイトル）を押すと完了を切り替える（SPEC §1.1）。詳細は右のボタンから開く
   return (
     <li className={`row${done ? ' row-done' : ''}`}>
       <button
@@ -519,7 +519,7 @@ function TaskRow({
         disabled={disabled}
       >
         <span className="check">
-          <span className="check-box">{done ? <IconCheck className="icon icon-check" /> : null}</span>
+          <span className="check-box" />
         </span>
         {note ? (
           <span className="row-text">
