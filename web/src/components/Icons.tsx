@@ -23,11 +23,6 @@ function Svg({ className, title, children }: P & { children: React.ReactNode }) 
   )
 }
 
-export const IconCheck = (p: P) => (
-  <Svg {...p}>
-    <path d="M5 12.5l4.5 4.5L19 7.5" />
-  </Svg>
-)
 export const IconRepeat = (p: P) => (
   <Svg {...p}>
     <path d="M17 2l4 4-4 4" />

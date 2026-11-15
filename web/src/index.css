@@ -375,6 +375,7 @@ button:disabled {
 }
 
 .row {
+  --row-check: var(--space-8);
   position: relative;
   display: flex;
   align-items: center;
@@ -386,7 +387,7 @@ button:disabled {
 
 /* 行の区切りは文字の位置から（まとまりの境目＝カードの枠と見分けやすくする） */
 .row::after {
-  --sep-inset: calc(var(--space-1) + var(--control-touch) + var(--space-2));
+  --sep-inset: calc(var(--space-1) + var(--row-check) + var(--space-2));
   content: '';
   position: absolute;
   right: 0;
@@ -408,45 +409,31 @@ button:disabled {
 .check {
   display: grid;
   place-items: center;
-  width: var(--control-touch);
-  height: var(--control-touch);
+  width: var(--row-check);
   flex: none;
 }
 
-/* 丸いチェック（iPhone のリマインダーに近い形） */
+/* 完了の印は小さな「・」だけ（行全体が完了ボタンなので、丸いチェックは置かない） */
 .check-box {
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border: 2px solid var(--color-border-strong);
+  width: 0.375rem;
+  height: 0.375rem;
   border-radius: var(--radius-pill);
-  background: var(--color-surface);
+  background: var(--color-text-tertiary);
   transition:
     background-color var(--duration-instant) var(--ease-standard),
-    border-color var(--duration-instant) var(--ease-standard),
     transform var(--duration-instant) var(--ease-standard);
 }
 
 .row-main:active:not(:disabled) .check-box {
-  transform: scale(0.9);
+  transform: scale(0.7);
 }
 
 .row-main[aria-checked='true'] .check-box {
-  border-color: var(--color-accent);
   background: var(--color-accent);
-  color: var(--color-text-on-accent);
 }
 
 .row-main:disabled .check-box {
-  border-color: var(--color-border);
-  background: var(--color-disabled-surface);
-}
-
-.icon-check {
-  width: 1.125rem;
-  height: 1.125rem;
-  stroke-width: 3;
+  background: var(--color-border-strong);
 }
 
 .row-main {
