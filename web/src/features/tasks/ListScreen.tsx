@@ -506,6 +506,7 @@ function TaskRow({
   detail: Parameters<typeof Link>[0]['to']
   onToggle: () => void
 }) {
+  // チェックの丸だけでなくタイトルを押しても完了を切り替える（SPEC §1.1）。詳細は右のボタンから開く
   return (
     <li className={`row${done ? ' row-done' : ''}`}>
       <button
@@ -513,13 +514,13 @@ function TaskRow({
         role="checkbox"
         aria-checked={done}
         aria-label={`${title} を${done ? '未完了に戻す' : '完了にする'}`}
-        className="check"
+        className="row-main"
         onClick={onToggle}
         disabled={disabled}
       >
-        <span className="check-box">{done ? <IconCheck className="icon icon-check" /> : null}</span>
-      </button>
-      <Link to={detail} className="row-main">
+        <span className="check">
+          <span className="check-box">{done ? <IconCheck className="icon icon-check" /> : null}</span>
+        </span>
         {note ? (
           <span className="row-text">
             <span className="row-title">{title}</span>
@@ -528,9 +529,9 @@ function TaskRow({
         ) : (
           <span className="row-title">{title}</span>
         )}
-        {repeat ? <IconRepeat className="icon icon-sm row-icon" title="ルーティーン" /> : null}
-        {clip ? <IconClip className="icon icon-sm row-icon" title="画像あり" /> : null}
-      </Link>
+      </button>
+      {repeat ? <IconRepeat className="icon icon-sm row-icon" title="ルーティーン" /> : null}
+      {clip ? <IconClip className="icon icon-sm row-icon" title="画像あり" /> : null}
       <Link to={detail} className="icon-btn row-detail" aria-label={`${title} の詳細`}>
         <IconChevronRight />
       </Link>

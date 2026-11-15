@@ -410,8 +410,6 @@ button:disabled {
   place-items: center;
   width: var(--control-touch);
   height: var(--control-touch);
-  border: 0;
-  background: transparent;
   flex: none;
 }
 
@@ -430,17 +428,17 @@ button:disabled {
     transform var(--duration-instant) var(--ease-standard);
 }
 
-.check:active:not(:disabled) .check-box {
+.row-main:active:not(:disabled) .check-box {
   transform: scale(0.9);
 }
 
-.check[aria-checked='true'] .check-box {
+.row-main[aria-checked='true'] .check-box {
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: var(--color-text-on-accent);
 }
 
-.check:disabled .check-box {
+.row-main:disabled .check-box {
   border-color: var(--color-border);
   background: var(--color-disabled-surface);
 }
@@ -459,10 +457,13 @@ button:disabled {
   min-width: 0;
   min-height: var(--space-16);
   padding: var(--space-3) 0;
+  border: 0;
+  background: transparent;
   color: var(--color-text);
-  text-decoration: none;
+  font-family: inherit;
   font-size: var(--text-lg);
   line-height: var(--leading-ui);
+  text-align: left;
 }
 
 .row-title {

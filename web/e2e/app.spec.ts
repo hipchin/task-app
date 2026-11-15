@@ -126,6 +126,13 @@ test('完了チェックで取り消し線が付き、もう一度押すと戻�
   await day(page, TODAY).locator('li.row', { hasText: t }).getByRole('checkbox').click()
   await expect(day(page, TODAY).locator('li.row', { hasText: t }).locator('.row-title')).toHaveCSS('text-decoration-line', 'none')
 
+  // タイトルを押しても完了を切り替えられる（詳細には移動しない）
+  await day(page, TODAY).locator('li.row', { hasText: t }).locator('.row-title').click()
+  await expect(day(page, TODAY).locator('li.row', { hasText: t }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('heading', { name: 'やること', level: 1 })).toBeVisible()
+  await day(page, TODAY).locator('li.row', { hasText: t }).locator('.row-title').click()
+  await expect(day(page, TODAY).locator('li.row', { hasText: t }).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
+
   // 「すべて」を切り替えると未完了だけになる（TODO-1 の仮仕様）
   await day(page, TODAY).locator('li.row', { hasText: t }).getByRole('checkbox').click()
   await page.getByRole('button', { name: 'すべて' }).click()
