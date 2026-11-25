@@ -4,6 +4,7 @@ import { todayJst, type DateStr } from '../../lib/date'
 import type { Routine, RoutineLog, RoutineLogWithAttachments } from '../../lib/types'
 import { endDateForStop, planRoutineSave, type RoutineDraft } from '../../lib/routineRule'
 import { removeStorageFiles } from '../attachments/api'
+import { pickCachedRange, rangeOfKey, type CachedRange } from '../../lib/cachedRange'
 
 export const routineKeys = {
   all: ['routines'] as const,
@@ -24,8 +25,11 @@ export function useRoutines() {
 }
 
 export function useRoutineLogs(from: DateStr, to: DateStr) {
+  const qc = useQueryClient()
   return useQuery({
     queryKey: routineKeys.logRange(from, to),
+    // 日付が変わって鍵が変わっても、前の期間のキャッシュから先に出す（取得が終われば差し替わる）
+    placeholderData: () => pickCachedRange(cachedLogRanges(qc), from, to),
     queryFn: async (): Promise<RoutineLogWithAttachments[]> => {
       const { data, error } = await supabase
         .from('routine_logs')
@@ -86,6 +90,27 @@ export async function upsertRoutineLog(
 
 type LogRangeKey = readonly ['routineLogs', DateStr, DateStr]
 
+/** キャッシュ済みの期間ごとの記録 */
+function cachedLogRanges(qc: QueryClient): CachedRange<RoutineLogWithAttachments>[] {
+  const out: CachedRange<RoutineLogWithAttachments>[] = []
+  for (const [key, list] of qc.getQueriesData<RoutineLogWithAttachments[]>({ queryKey: routineKeys.logs })) {
+    const range = rangeOfKey(key)
+    if (list && range) out.push([range.from, range.to, list])
+  }
+  return out
+}
+
+/** 仮の一覧を表示中の期間にも楽観的な変更が効くよう、仮の一覧を古い扱いでキャッシュに入れる */
+function seedLogPlaceholders(qc: QueryClient) {
+  const ranges = cachedLogRanges(qc)
+  for (const q of qc.getQueryCache().findAll({ queryKey: routineKeys.logs })) {
+    const range = rangeOfKey(q.queryKey)
+    if (q.state.data !== undefined || !range) continue
+    const data = pickCachedRange(ranges, range.from, range.to)
+    if (data) qc.setQueryData(q.queryKey, data, { updatedAt: 0 })
+  }
+}
+
 function invalidateLogsWhenIdle(qc: QueryClient) {
   if (qc.isMutating() <= 1) void qc.invalidateQueries({ queryKey: routineKeys.logs })
 }
@@ -98,6 +123,7 @@ export function useToggleRoutine() {
       upsertRoutineLog(routineId, date, { done }),
     onMutate: async ({ routineId, date, done }) => {
       await qc.cancelQueries({ queryKey: routineKeys.logs })
+      seedLogPlaceholders(qc)
       const snap = qc.getQueriesData<RoutineLogWithAttachments[]>({ queryKey: routineKeys.logs })
       for (const [key, list] of snap) {
         if (!list) continue
