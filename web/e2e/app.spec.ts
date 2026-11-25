@@ -371,6 +371,25 @@ test('オフラインで起動しても直近のデータが表示され、編�
   await expect(day(page, TODAY).getByRole('button', { name: /にタスクを追加/ })).toBeEnabled()
 })
 
+test('日付が変わって最初に開いたときも、通信を待たずに前日のキャッシュで一覧を出す', async ({ page }) => {
+  await page.clock.install()
+  await login(page)
+  const t = `翌朝 ${Date.now()}`
+  await quickAdd(page, [t])
+  await expect(day(page, TODAY).getByText(t)).toBeVisible()
+  await page.waitForTimeout(1500) // キャッシュの永続化を待つ
+
+  // 翌日の朝に開き直す。データの取得は返さず、キャッシュだけで出せるかを見る
+  await page.clock.setSystemTime(new Date(`${TOMORROW}T08:00:00+09:00`))
+  await page.route('**/rest/v1/**', () => {})
+  await page.evaluate(() => sessionStorage.removeItem('task-app:list-selected'))
+  await page.reload()
+  await expect(day(page, TOMORROW)).toBeVisible({ timeout: 3_000 })
+  // 昨日の未完了は「対応中」に出る
+  await expandOpen(page)
+  await expect(page.locator('section.open-section').getByText(t)).toBeVisible()
+})
+
 test('昨日の未完了ルーティーンは今日に繰り越されず、ルール変更後も昨日までの履歴は変わらない', async ({ page }) => {
   const { url, service } = localSupabase()
   const admin = createClient(url, service, { auth: { persistSession: false } })

@@ -4,6 +4,7 @@ import type { Task, TaskWithAttachments } from '../../lib/types'
 import { isDateStr, type DateStr } from '../../lib/date'
 import { sortOpenTasks } from '../../lib/openTasks'
 import { removeStorageFiles } from '../attachments/api'
+import { pickCachedOpenTasks, pickCachedRange, type CachedRange } from '../../lib/cachedRange'
 
 export const taskKeys = {
   all: ['tasks'] as const,
@@ -14,9 +15,21 @@ export const taskKeys = {
 
 const LIST_COLUMNS = '*, attachments(id)'
 
+/** キャッシュ済みの期間ごとのタスク一覧 */
+function cachedTaskRanges(qc: QueryClient): CachedRange<TaskWithAttachments>[] {
+  const out: CachedRange<TaskWithAttachments>[] = []
+  for (const [key, list] of qc.getQueriesData<TaskWithAttachments[]>({ queryKey: taskKeys.all })) {
+    if (list && isRangeKey(key)) out.push([key[1], key[2], list])
+  }
+  return out
+}
+
 export function useTasks(from: DateStr, to: DateStr) {
+  const qc = useQueryClient()
   return useQuery({
     queryKey: taskKeys.range(from, to),
+    // 日付が変わって鍵が変わっても、前の期間のキャッシュから先に出す（取得が終われば差し替わる）
+    placeholderData: () => pickCachedRange(cachedTaskRanges(qc), from, to),
     queryFn: async (): Promise<TaskWithAttachments[]> => {
       const { data, error } = await supabase
         .from('tasks')
@@ -33,9 +46,19 @@ export function useTasks(from: DateStr, to: DateStr) {
 }
 
 /** 「対応中」：未完了で今日より前の日付のタスク（表示期間に関係なく取る。SPEC §3.7） */
+const OPEN_LIMIT = 300
+
 export function useOpenTasks(today: DateStr) {
+  const qc = useQueryClient()
   return useQuery({
     queryKey: taskKeys.open(today),
+    placeholderData: () =>
+      pickCachedOpenTasks(
+        qc.getQueriesData<TaskWithAttachments[]>({ queryKey: ['tasks', 'open'] }).flatMap(([, l]) => (l ? [l] : [])),
+        cachedTaskRanges(qc),
+        today,
+        OPEN_LIMIT,
+      ),
     queryFn: async (): Promise<TaskWithAttachments[]> => {
       const { data, error } = await supabase
         .from('tasks')
@@ -45,7 +68,7 @@ export function useOpenTasks(today: DateStr) {
         // 件数で切る前に締め切りの近い順に並べる（切られても急ぎのものが残る）
         .order('due_date', { ascending: true, nullsFirst: false })
         .order('date')
-        .limit(300)
+        .limit(OPEN_LIMIT)
       if (error) throw error
       return sortOpenTasks(data as TaskWithAttachments[])
     },
@@ -110,7 +133,28 @@ function sortTasks(list: TaskWithAttachments[]) {
 
 async function snapshot(qc: QueryClient) {
   await qc.cancelQueries({ queryKey: taskKeys.all })
+  seedPlaceholders(qc)
   return qc.getQueriesData<TaskWithAttachments[]>({ queryKey: taskKeys.all })
+}
+
+/**
+ * まだ取得できていない一覧（仮の一覧を表示中）にも楽観的な変更が効くよう、仮の一覧をキャッシュに入れる。
+ * 古い扱い（updatedAt: 0）にして、操作のあとの再取得で必ず取り直す。
+ */
+function seedPlaceholders(qc: QueryClient) {
+  const ranges = cachedTaskRanges(qc)
+  const openLists = qc
+    .getQueriesData<TaskWithAttachments[]>({ queryKey: ['tasks', 'open'] })
+    .flatMap(([, l]) => (l ? [l] : []))
+  for (const q of qc.getQueryCache().findAll({ queryKey: taskKeys.all })) {
+    if (q.state.data !== undefined) continue
+    const key = q.queryKey
+    let data: TaskWithAttachments[] | undefined
+    if (isRangeKey(key)) data = pickCachedRange(ranges, key[1], key[2])
+    else if (key[1] === 'open' && typeof key[2] === 'string' && isDateStr(key[2]))
+      data = pickCachedOpenTasks(openLists, ranges, key[2], OPEN_LIMIT)
+    if (data) qc.setQueryData(key, data, { updatedAt: 0 })
+  }
 }
 
 /**

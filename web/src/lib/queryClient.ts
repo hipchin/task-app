@@ -1,6 +1,8 @@
-import { QueryClient } from '@tanstack/react-query'
+import { defaultShouldDehydrateQuery, QueryClient, type DehydrateOptions } from '@tanstack/react-query'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import { del, get, set } from 'idb-keyval'
+import { shouldPersistQuery } from './cachedRange'
+import { todayJst } from './date'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,6 +28,11 @@ export const persister = createAsyncStoragePersister({
   key: PERSIST_KEY,
   throttleTime: 500,
 })
+
+/** 端末に保存するクエリを絞る（起動時の読み込みを軽くする） */
+export const dehydrateOptions: DehydrateOptions = {
+  shouldDehydrateQuery: (query) => defaultShouldDehydrateQuery(query) && shouldPersistQuery(query.queryKey, todayJst()),
+}
 
 export const PERSIST_MAX_AGE = 1000 * 60 * 60 * 24 * 7
 /** キャッシュの形式を変えたら上げる */
